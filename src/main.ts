@@ -6,11 +6,13 @@ import { GalaxyScene } from "./scene/GalaxyScene";
 import { NodeInspector } from "./ui/NodeInspector";
 import { SpawnPanel } from "./ui/SpawnPanel";
 import { Legend } from "./ui/Legend";
+import { Hud } from "./ui/Hud";
 
 // --- Engine: swap MockGraphEngine for a real backend-backed GraphEngine
 // implementation (e.g. one that speaks to an Elixir GraphEngine over
 // WebSocket) to go from demo to production. Nothing below this line needs
-// to change when that swap happens.
+// to change when that swap happens. See README "How to Connect a Real
+// Backend".
 const engine = new MockGraphEngine();
 registerDefaultNodeTypes(engine);
 seedConstellation(engine);
@@ -27,7 +29,17 @@ if (!canvas || !legendSlot || !spawnSlot || !inspectorSlot) {
 const scene = new GalaxyScene(canvas);
 scene.setNodeTypes(engine.getNodeTypes());
 
-const inspector = new NodeInspector(inspectorSlot, engine);
+const hud = new Hud(canvas);
+const inspector = new NodeInspector(inspectorSlot, engine, (parent) => {
+  const def = engine.getNodeTypes().find((d) => d.id === parent.typeId);
+  const child = engine.spawnNode({
+    typeId: parent.typeId,
+    label: `${parent.label}-child`,
+    framework: def?.label ?? parent.framework,
+    capabilities: [{ name: "assist", description: `Delegated subtask from ${parent.label}` }],
+  });
+  engine.connect(parent.id, child.id);
+});
 new SpawnPanel(spawnSlot, engine);
 new Legend(legendSlot, engine.getNodeTypes());
 
@@ -35,8 +47,18 @@ scene.setNodeClickHandler((node) => {
   if (node) {
     scene.focusOn(node.id);
     inspector.show(node);
+  } else {
+    scene.clearFocus();
   }
 });
 
-engine.subscribe((nodes, edges) => scene.update(nodes, edges));
+engine.subscribe((nodes, edges) => {
+  scene.update(nodes, edges);
+  hud.updateStats(nodes, edges);
+  inspector.refresh(nodes);
+});
+engine.onEvent((event) => {
+  scene.handleEvent(event);
+  hud.pushEvent(event);
+});
 engine.start();

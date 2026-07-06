@@ -16,6 +16,12 @@ export interface AgentCapability {
   description: string;
 }
 
+/** A single entry in an agent's recent-memory window, surfaced by the inspector. */
+export interface MemoryEvent {
+  at: number;
+  text: string;
+}
+
 /** Live, framework-agnostic snapshot of a single agent instance. */
 export interface AgentNode {
   id: string;
@@ -25,8 +31,13 @@ export interface AgentNode {
   framework: string;
   status: NodeStatus;
   capabilities: AgentCapability[];
+  /** 0..1 — pluggable reputation systems map into this range. */
   reputation: number;
+  /** 0..1 recent workload level; drives the node's core pulse. */
+  activity: number;
   memorySummary: string;
+  /** Most recent memory events, newest first (bounded window). */
+  memoryEvents: MemoryEvent[];
   /** Optional 3D position hint; the scene assigns one if omitted. */
   position?: [number, number, number];
   createdAt: number;
@@ -37,7 +48,7 @@ export interface AgentEdge {
   id: string;
   sourceId: string;
   targetId: string;
-  /** 0..1 recent activity level, driving the pulse visualization. */
+  /** 0..1 recent activity level, driving the pulse/particle-flow visualization. */
   activity: number;
 }
 
@@ -52,13 +63,31 @@ export interface NodeTypeDefinition {
   description: string;
   /** Hex color used for the node mesh and its edges/UI accents. */
   color: number;
+  /** Optional brighter accent for cores/particles; defaults to `color`. */
+  accentColor?: number;
   /** Relative visual scale, 1.0 = baseline. */
   scale: number;
   /** Three.js geometry kind — kept as a string enum so this module has no Three.js dependency. */
   geometry: "icosahedron" | "sphere" | "box" | "octahedron" | "torus";
+  /** Visual played when an agent of this type is born. Defaults to "burst". */
+  birthEffect?: "burst" | "ripple" | "none";
 }
 
+/**
+ * Discrete runtime events. Snapshot subscription (GraphListener) answers
+ * "what does the graph look like now"; these answer "what just happened",
+ * which is what effects (birth bursts, death dissolves, message pulses) and
+ * the HUD event feed key off.
+ */
+export type GraphEvent =
+  | { kind: "node_spawned"; node: AgentNode }
+  | { kind: "node_updated"; node: AgentNode }
+  | { kind: "node_died"; nodeId: string; label: string; receipt: string }
+  | { kind: "message_pulse"; edgeId: string; sourceId: string; targetId: string }
+  | { kind: "tool_invoked"; nodeId: string; tool: string; result: string };
+
 export type GraphListener = (nodes: AgentNode[], edges: AgentEdge[]) => void;
+export type GraphEventListener = (event: GraphEvent) => void;
 
 /**
  * The interface any backend must implement to drive the galaxy. The demo
@@ -82,11 +111,20 @@ export interface GraphEngine {
 
   connect(sourceId: string, targetId: string): AgentEdge;
 
+  /** Invoke one of the agent's exposed tools; resolves with its textual result. */
+  invokeTool(nodeId: string, tool: string): Promise<string>;
+
+  /** Send a direct message/query to an agent; resolves with its reply. */
+  sendMessage(nodeId: string, text: string): Promise<string>;
+
   getNodes(): AgentNode[];
   getEdges(): AgentEdge[];
 
-  /** Subscribe to any change in graph state; returns an unsubscribe function. */
+  /** Subscribe to full-snapshot changes; returns an unsubscribe function. */
   subscribe(listener: GraphListener): () => void;
+
+  /** Subscribe to discrete runtime events; returns an unsubscribe function. */
+  onEvent(listener: GraphEventListener): () => void;
 
   start(): void;
   stop(): void;

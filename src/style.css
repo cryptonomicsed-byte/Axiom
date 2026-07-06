@@ -1,7 +1,8 @@
 :root {
   color-scheme: dark;
   --axiom-bg: #05060f;
-  --axiom-panel: #10132199;
+  --axiom-glass: rgba(16, 19, 33, 0.55);
+  --axiom-glass-border: rgba(122, 138, 200, 0.25);
   --axiom-border: #2a2f45;
   --axiom-text: #e6e8f5;
   --axiom-muted: #9aa0c3;
@@ -24,7 +25,7 @@ body {
 #axiom-root {
   display: grid;
   grid-template-rows: auto 1fr;
-  grid-template-columns: 1fr 320px;
+  grid-template-columns: 1fr 330px;
   height: 100vh;
 }
 
@@ -50,17 +51,88 @@ body {
 
 #axiom-canvas {
   position: relative;
+  overflow: hidden;
 }
 
 #axiom-sidebar {
-  border-left: 1px solid var(--axiom-border);
+  border-left: 1px solid var(--axiom-glass-border);
   padding: 1rem;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 1rem;
-  background: #080a14;
+  background: var(--axiom-glass);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
 }
+
+/* --- HUD overlay ------------------------------------------------------- */
+
+.axiom-hud {
+  position: absolute;
+  top: 0.75rem;
+  left: 0.75rem;
+  z-index: 5;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-width: 24rem;
+}
+
+.axiom-hud__stats {
+  display: flex;
+  gap: 0.9rem;
+  padding: 0.45rem 0.8rem;
+  border-radius: 0.5rem;
+  background: var(--axiom-glass);
+  border: 1px solid var(--axiom-glass-border);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  font-size: 0.72rem;
+  color: var(--axiom-muted);
+}
+
+.axiom-hud__stats strong {
+  color: var(--axiom-text);
+}
+
+.axiom-hud__feed {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.7rem;
+  color: var(--axiom-muted);
+}
+
+.axiom-hud__feed li {
+  padding: 0.25rem 0.6rem;
+  border-radius: 0.35rem;
+  background: rgba(10, 12, 24, 0.5);
+  border: 1px solid rgba(122, 138, 200, 0.12);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  animation: axiom-feed-in 0.3s ease-out;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+@keyframes axiom-feed-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* --- Legend & spawn panel ---------------------------------------------- */
 
 .axiom-legend {
   display: flex;
@@ -90,14 +162,16 @@ body {
   flex-direction: column;
   gap: 0.5rem;
   padding: 0.75rem;
-  border: 1px solid var(--axiom-border);
-  border-radius: 0.5rem;
-  background: var(--axiom-panel);
+  border: 1px solid var(--axiom-glass-border);
+  border-radius: 0.6rem;
+  background: var(--axiom-glass);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 .axiom-spawn__select,
 .axiom-spawn__input {
-  background: #12162a;
+  background: rgba(18, 22, 42, 0.8);
   color: var(--axiom-text);
   border: 1px solid var(--axiom-border);
   border-radius: 0.35rem;
@@ -114,20 +188,38 @@ body {
   font-weight: 600;
   cursor: pointer;
   font-size: 0.85rem;
+  transition: filter 0.15s ease, transform 0.1s ease;
+}
+
+.axiom-btn:hover {
+  filter: brightness(1.15);
+}
+
+.axiom-btn:active {
+  transform: scale(0.97);
 }
 
 .axiom-btn--danger {
   background: #ff5c7a;
-  margin-top: 0.75rem;
 }
 
+.axiom-btn--small {
+  padding: 0.35rem 0.6rem;
+  font-size: 0.75rem;
+}
+
+/* --- Inspector ---------------------------------------------------------- */
+
 .axiom-inspector {
-  border: 1px solid var(--axiom-border);
-  border-radius: 0.5rem;
+  border: 1px solid var(--axiom-glass-border);
+  border-radius: 0.6rem;
   padding: 0.85rem;
-  background: var(--axiom-panel);
+  background: var(--axiom-glass);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
   flex: 1;
   font-size: 0.85rem;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
 }
 
 .axiom-inspector--empty {
@@ -161,13 +253,18 @@ body {
 .axiom-inspector__meta {
   display: grid;
   grid-template-columns: auto 1fr;
-  gap: 0.25rem 0.75rem;
+  gap: 0.3rem 0.75rem;
+  align-items: center;
   font-size: 0.8rem;
-  margin: 0 0 0.75rem;
+  margin: 0 0 0.5rem;
 }
 
 .axiom-inspector__meta dt {
   color: var(--axiom-muted);
+}
+
+.axiom-inspector__meta dd {
+  margin: 0;
 }
 
 .axiom-inspector__mono {
@@ -175,34 +272,108 @@ body {
   font-size: 0.72rem;
 }
 
+.axiom-meter {
+  height: 0.4rem;
+  border-radius: 0.2rem;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.axiom-meter__fill {
+  height: 100%;
+  border-radius: 0.2rem;
+  transition: width 0.35s ease;
+}
+
 .axiom-inspector h3 {
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.06em;
   color: var(--axiom-muted);
   margin: 0.75rem 0 0.35rem;
 }
 
-.axiom-inspector__caps {
+.axiom-inspector__tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.axiom-tool {
+  background: rgba(79, 209, 255, 0.12);
+  border: 1px solid rgba(79, 209, 255, 0.35);
+  color: var(--axiom-accent);
+  border-radius: 0.35rem;
+  padding: 0.3rem 0.55rem;
+  font-size: 0.72rem;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.axiom-tool:hover {
+  background: rgba(79, 209, 255, 0.25);
+}
+
+.axiom-tool:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+
+.axiom-inspector__toolresult,
+.axiom-inspector__reply {
+  min-height: 1.1rem;
+  margin-top: 0.35rem;
+  font-size: 0.74rem;
+  color: var(--axiom-accent);
+  font-family: ui-monospace, monospace;
+  word-break: break-word;
+}
+
+.axiom-inspector__memory {
   list-style: none;
   margin: 0;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
+  gap: 0.3rem;
+  max-height: 9rem;
+  overflow-y: auto;
+  font-size: 0.74rem;
+  color: var(--axiom-muted);
 }
 
-.axiom-inspector__caps li {
+.axiom-inspector__memory time {
+  display: block;
+  font-size: 0.62rem;
+  color: rgba(154, 160, 195, 0.6);
+}
+
+.axiom-inspector__console {
   display: flex;
-  flex-direction: column;
-  font-size: 0.78rem;
+  gap: 0.4rem;
 }
 
-.axiom-inspector__caps span {
-  color: var(--axiom-muted);
+.axiom-inspector__console input {
+  flex: 1;
+  min-width: 0;
 }
 
-.axiom-inspector__memory {
-  font-size: 0.8rem;
-  color: var(--axiom-muted);
+.axiom-inspector__actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.9rem;
+}
+
+/* --- Responsive --------------------------------------------------------- */
+
+@media (max-width: 760px) {
+  #axiom-root {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 55vh 1fr;
+  }
+
+  #axiom-sidebar {
+    border-left: none;
+    border-top: 1px solid var(--axiom-glass-border);
+  }
 }
