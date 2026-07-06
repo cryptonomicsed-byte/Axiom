@@ -1,0 +1,20 @@
+{
+  "name": "axiom-galaxy",
+  "version": "0.1.0",
+  "description": "AXIOM Galaxy — a pluggable 3D graph surface where nodes are live agent handles and edges are communication channels.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "three": "^0.169.0"
+  },
+  "devDependencies": {
+    "@types/three": "^0.169.0",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.10"
+  }
+}
