@@ -66,6 +66,7 @@ export class MockGraphEngine implements GraphEngine {
     label: string;
     framework: string;
     capabilities?: AgentCapability[];
+    reputation?: number;
   }): AgentNode {
     if (!this.nodeTypes.has(input.typeId)) {
       throw new Error(`Unknown node type "${input.typeId}" — register it before spawning.`);
@@ -77,7 +78,7 @@ export class MockGraphEngine implements GraphEngine {
       framework: input.framework,
       status: "spawning",
       capabilities: input.capabilities ?? [],
-      reputation: 0.35 + Math.random() * 0.3,
+      reputation: clamp(input.reputation ?? 0.25 + Math.random() * 0.4),
       activity: 0.6,
       memorySummary: "bootstrapping memory namespace",
       memoryEvents: [{ at: Date.now(), text: "agent born; namespace allocated" }],
@@ -213,14 +214,37 @@ export class MockGraphEngine implements GraphEngine {
       }
     }
 
-    // Node activity/reputation drift.
+    // Node activity/reputation drift, punctuated by dramatic work surges.
     for (const [id, node] of this.nodes) {
       if (node.status !== "active") continue;
-      const activity = clamp(node.activity + (Math.random() - 0.52) * 0.12);
-      const reputation = clamp(node.reputation + (Math.random() - 0.5) * 0.01);
+      let activity = clamp(node.activity + (Math.random() - 0.53) * 0.14);
+      if (Math.random() < 0.012) activity = 1; // surge: a burst of real work arrives
+      // Busy agents earn reputation; idle ones slowly bleed it.
+      const earn = (node.activity - 0.35) * 0.006;
+      const reputation = clamp(node.reputation + earn + (Math.random() - 0.5) * 0.008);
       if (Math.abs(activity - node.activity) > 0.001 || reputation !== node.reputation) {
         this.nodes.set(id, { ...node, activity, reputation });
         changed = true;
+      }
+    }
+
+    // A surging agent floods its channels: pulse every edge it touches.
+    if (Math.random() < 0.08) {
+      const busy = this.getNodes().filter((n) => n.activity > 0.85);
+      if (busy.length > 0) {
+        const surger = busy[Math.floor(Math.random() * busy.length)];
+        for (const [edgeId, edge] of this.edges) {
+          if (edge.sourceId === surger.id || edge.targetId === surger.id) {
+            this.edges.set(edgeId, { ...edge, activity: 1 });
+            this.emitEvent({
+              kind: "message_pulse",
+              edgeId: edge.id,
+              sourceId: edge.sourceId,
+              targetId: edge.targetId,
+            });
+            changed = true;
+          }
+        }
       }
     }
 

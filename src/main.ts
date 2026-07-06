@@ -29,7 +29,7 @@ if (!canvas || !legendSlot || !spawnSlot || !inspectorSlot) {
 const scene = new GalaxyScene(canvas);
 scene.setNodeTypes(engine.getNodeTypes());
 
-const hud = new Hud(canvas);
+const hud = new Hud(canvas, (enabled) => scene.setFollowMode(enabled));
 const inspector = new NodeInspector(inspectorSlot, engine, (parent) => {
   const def = engine.getNodeTypes().find((d) => d.id === parent.typeId);
   const child = engine.spawnNode({

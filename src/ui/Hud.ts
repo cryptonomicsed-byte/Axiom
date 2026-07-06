@@ -12,14 +12,25 @@ export class Hud {
   private feed: HTMLElement;
   private entries: string[] = [];
 
-  constructor(container: HTMLElement) {
+  constructor(container: HTMLElement, onFollowToggle: (enabled: boolean) => void) {
     const root = document.createElement("div");
     root.className = "axiom-hud";
     this.stats = document.createElement("div");
     this.stats.className = "axiom-hud__stats";
+
+    const follow = document.createElement("button");
+    follow.className = "axiom-hud__follow";
+    follow.textContent = "◉ follow busiest";
+    let enabled = false;
+    follow.addEventListener("click", () => {
+      enabled = !enabled;
+      follow.classList.toggle("axiom-hud__follow--on", enabled);
+      onFollowToggle(enabled);
+    });
+
     this.feed = document.createElement("ul");
     this.feed.className = "axiom-hud__feed";
-    root.append(this.stats, this.feed);
+    root.append(this.stats, follow, this.feed);
     container.appendChild(root);
   }
 

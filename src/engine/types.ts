@@ -67,8 +67,13 @@ export interface NodeTypeDefinition {
   accentColor?: number;
   /** Relative visual scale, 1.0 = baseline. */
   scale: number;
-  /** Three.js geometry kind — kept as a string enum so this module has no Three.js dependency. */
-  geometry: "icosahedron" | "sphere" | "box" | "octahedron" | "torus";
+  /**
+   * Shell archetype — kept as a string enum so this module has no Three.js
+   * dependency. orb: metallic sphere; geodesic: faceted sphere with internal
+   * lattice; crystal: elongated polyhedral shard; prism: hexagonal column;
+   * toroid: ring with an internal energy core.
+   */
+  geometry: "orb" | "geodesic" | "crystal" | "prism" | "toroid";
   /** Visual played when an agent of this type is born. Defaults to "burst". */
   birthEffect?: "burst" | "ripple" | "none";
 }
@@ -105,6 +110,8 @@ export interface GraphEngine {
     label: string;
     framework: string;
     capabilities?: AgentCapability[];
+    /** Optional starting reputation (0..1); backends may ignore or clamp. */
+    reputation?: number;
   }): AgentNode;
 
   terminateNode(nodeId: string): void;

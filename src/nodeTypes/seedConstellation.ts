@@ -10,6 +10,7 @@ export function seedConstellation(engine: GraphEngine): void {
     typeId: "elixir-core",
     label: "hermes-core",
     framework: "Elixir/OTP",
+    reputation: 0.88,
     capabilities: [
       { name: "supervise", description: "Dynamic agent supervision and topology authority" },
       { name: "route", description: "Message bus routing between agents" },
@@ -20,6 +21,7 @@ export function seedConstellation(engine: GraphEngine): void {
     typeId: "python-fabric",
     label: "loom-fabric",
     framework: "Python",
+    reputation: 0.62,
     capabilities: [
       { name: "market-events", description: "Causal MarketEvent ingestion and enrichment" },
       { name: "anomaly-detect", description: "Pattern and anomaly detection engines" },

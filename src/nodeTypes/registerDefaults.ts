@@ -14,7 +14,7 @@ export const DEFAULT_NODE_TYPES: NodeTypeDefinition[] = [
     color: 0xff7a45,
     accentColor: 0xffb37a,
     scale: 0.7,
-    geometry: "octahedron",
+    geometry: "orb",
     birthEffect: "burst",
   },
   {
@@ -24,7 +24,7 @@ export const DEFAULT_NODE_TYPES: NodeTypeDefinition[] = [
     color: 0x6a5cff,
     accentColor: 0x9d8cff,
     scale: 1.2,
-    geometry: "icosahedron",
+    geometry: "geodesic",
     birthEffect: "burst",
   },
   {
@@ -34,7 +34,7 @@ export const DEFAULT_NODE_TYPES: NodeTypeDefinition[] = [
     color: 0x2fd4c7,
     accentColor: 0x7df2e8,
     scale: 1.0,
-    geometry: "sphere",
+    geometry: "crystal",
     birthEffect: "burst",
   },
   {
@@ -44,7 +44,7 @@ export const DEFAULT_NODE_TYPES: NodeTypeDefinition[] = [
     color: 0xf5c542,
     accentColor: 0xffe08a,
     scale: 0.9,
-    geometry: "box",
+    geometry: "prism",
     birthEffect: "burst",
   },
   {
@@ -54,7 +54,7 @@ export const DEFAULT_NODE_TYPES: NodeTypeDefinition[] = [
     color: 0xe64ac9,
     accentColor: 0xff8ae4,
     scale: 1.1,
-    geometry: "torus",
+    geometry: "toroid",
     birthEffect: "burst",
   },
 ];
