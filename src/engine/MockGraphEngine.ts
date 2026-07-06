@@ -1,7 +1,9 @@
 import type {
   AgentCapability,
   AgentEdge,
+  AgentInstance,
   AgentNode,
+  AgentRuntimeProvider,
   GraphEngine,
   GraphEvent,
   GraphEventListener,
@@ -37,13 +39,13 @@ const MESSAGE_REPLIES = [
 ];
 
 /**
- * Local, in-memory implementation of GraphEngine. It simulates everything a
- * real backend would own — spawning (including autonomous spawn chains),
- * per-node activity drift, reputation evolution, memory event logs, message
- * traffic, and tool invocation — so the galaxy feels alive without a server.
- * Swap this for a transport-backed implementation of the same GraphEngine
- * interface to drive the scene from a real Elixir/Rust/Python runtime;
- * nothing in scene/ or ui/ needs to change.
+ * Local implementation of GraphEngine with a hybrid execution model:
+ * node types claimed by a registered AgentRuntimeProvider are backed by
+ * REAL agent processes (e.g. sandboxed Wasm instances via WasmAgentHost) —
+ * their capabilities come from the process's own manifest and tool calls
+ * execute inside the process. Unclaimed types are simulated (activity
+ * drift, autonomous spawn chains, canned replies) so the galaxy is alive
+ * end-to-end while backends come online one runtime at a time.
  */
 export class MockGraphEngine implements GraphEngine {
   private nodeTypes = new Map<string, NodeTypeDefinition>();
@@ -52,6 +54,8 @@ export class MockGraphEngine implements GraphEngine {
   private listeners = new Set<GraphListener>();
   private eventListeners = new Set<GraphEventListener>();
   private tickHandle: ReturnType<typeof setInterval> | null = null;
+  private runtimes = new Map<string, AgentRuntimeProvider>();
+  private instances = new Map<string, AgentInstance>();
 
   registerNodeType(def: NodeTypeDefinition): void {
     this.nodeTypes.set(def.id, def);
@@ -59,6 +63,12 @@ export class MockGraphEngine implements GraphEngine {
 
   getNodeTypes(): NodeTypeDefinition[] {
     return [...this.nodeTypes.values()];
+  }
+
+  registerRuntime(provider: AgentRuntimeProvider): void {
+    for (const typeId of provider.typeIds) {
+      this.runtimes.set(typeId, provider);
+    }
   }
 
   spawnNode(input: {
@@ -88,20 +98,44 @@ export class MockGraphEngine implements GraphEngine {
     this.emitEvent({ kind: "node_spawned", node });
     this.emit();
 
-    // Simulate the spawn->active transition a real sandboxed process would go through.
-    setTimeout(() => {
-      const current = this.nodes.get(node.id);
-      if (current) {
-        const updated = {
-          ...current,
-          status: "active" as const,
-          memorySummary: "warm; observing fabric events",
-        };
-        this.nodes.set(node.id, updated);
-        this.emitEvent({ kind: "node_updated", node: updated });
-        this.emit();
-      }
-    }, 600);
+    const runtime = this.runtimes.get(input.typeId);
+    if (runtime) {
+      // Real process: boot it, then adopt its self-reported manifest.
+      runtime
+        .spawn(node)
+        .then((instance) => {
+          if (!this.nodes.has(node.id)) {
+            instance.terminate(); // terminated before boot finished
+            return;
+          }
+          this.instances.set(node.id, instance);
+          this.patchNode(node.id, {
+            status: "active",
+            capabilities: instance.capabilities,
+            memorySummary: "live process; manifest discovered",
+          });
+          this.touchNode(node.id, "wasm instance booted; tool manifest exported", 0.1);
+        })
+        .catch((error) => {
+          this.patchNode(node.id, { status: "degraded" });
+          this.touchNode(node.id, `boot failed: ${String(error)}`, 0);
+        });
+    } else {
+      // Simulated: fake the spawn->active transition a real process makes.
+      setTimeout(() => {
+        const current = this.nodes.get(node.id);
+        if (current) {
+          const updated = {
+            ...current,
+            status: "active" as const,
+            memorySummary: "warm; observing fabric events",
+          };
+          this.nodes.set(node.id, updated);
+          this.emitEvent({ kind: "node_updated", node: updated });
+          this.emit();
+        }
+      }, 600);
+    }
 
     return node;
   }
@@ -109,6 +143,11 @@ export class MockGraphEngine implements GraphEngine {
   terminateNode(nodeId: string): void {
     const node = this.nodes.get(nodeId);
     if (!node) return;
+    const instance = this.instances.get(nodeId);
+    if (instance) {
+      instance.terminate();
+      this.instances.delete(nodeId);
+    }
     this.nodes.delete(nodeId);
     for (const [edgeId, edge] of this.edges) {
       if (edge.sourceId === nodeId || edge.targetId === nodeId) {
@@ -139,9 +178,15 @@ export class MockGraphEngine implements GraphEngine {
   async invokeTool(nodeId: string, tool: string): Promise<string> {
     const node = this.nodes.get(nodeId);
     if (!node) throw new Error(`Node ${nodeId} not found`);
-    await delay(300 + Math.random() * 500);
-    const result = TOOL_RESULTS[Math.floor(Math.random() * TOOL_RESULTS.length)];
-    this.touchNode(nodeId, `tool "${tool}" invoked → ${result}`, 0.35);
+    const instance = this.instances.get(nodeId);
+    let result: string;
+    if (instance) {
+      result = await instance.invokeTool(tool, "");
+    } else {
+      await delay(300 + Math.random() * 500);
+      result = TOOL_RESULTS[Math.floor(Math.random() * TOOL_RESULTS.length)];
+    }
+    this.touchNode(nodeId, `tool "${tool}" invoked → ${truncate(result, 64)}`, 0.35);
     this.emitEvent({ kind: "tool_invoked", nodeId, tool, result });
     return result;
   }
@@ -149,8 +194,14 @@ export class MockGraphEngine implements GraphEngine {
   async sendMessage(nodeId: string, text: string): Promise<string> {
     const node = this.nodes.get(nodeId);
     if (!node) throw new Error(`Node ${nodeId} not found`);
-    await delay(400 + Math.random() * 600);
-    const reply = MESSAGE_REPLIES[Math.floor(Math.random() * MESSAGE_REPLIES.length)];
+    const instance = this.instances.get(nodeId);
+    let reply: string;
+    if (instance) {
+      reply = await instance.sendMessage(text);
+    } else {
+      await delay(400 + Math.random() * 600);
+      reply = MESSAGE_REPLIES[Math.floor(Math.random() * MESSAGE_REPLIES.length)];
+    }
     this.touchNode(nodeId, `direct message: "${truncate(text, 48)}"`, 0.25);
     return reply;
   }
@@ -268,6 +319,16 @@ export class MockGraphEngine implements GraphEngine {
     }
 
     if (changed) this.emit();
+  }
+
+  /** Applies partial updates to a node and broadcasts the change. */
+  private patchNode(nodeId: string, patch: Partial<AgentNode>): void {
+    const node = this.nodes.get(nodeId);
+    if (!node) return;
+    const updated = { ...node, ...patch };
+    this.nodes.set(nodeId, updated);
+    this.emitEvent({ kind: "node_updated", node: updated });
+    this.emit();
   }
 
   /** Records a memory event on a node and bumps its activity. */

@@ -1,5 +1,6 @@
 import "./style.css";
 import { MockGraphEngine } from "./engine/MockGraphEngine";
+import { WasmAgentHost } from "./runtime/WasmAgentHost";
 import { registerDefaultNodeTypes } from "./nodeTypes/registerDefaults";
 import { seedConstellation } from "./nodeTypes/seedConstellation";
 import { GalaxyScene } from "./scene/GalaxyScene";
@@ -15,6 +16,12 @@ import { Hud } from "./ui/Hud";
 // Backend".
 const engine = new MockGraphEngine();
 registerDefaultNodeTypes(engine);
+
+// Real runtime: every rust-wasm-leaf node is a live sandboxed WebAssembly
+// process (compiled from agents/leaf). Its tools and message replies execute
+// inside the instance — only the remaining node types are simulated.
+engine.registerRuntime(new WasmAgentHost("/agents/axiom_leaf.wasm", ["rust-wasm-leaf"]));
+
 seedConstellation(engine);
 
 const canvas = document.getElementById("axiom-canvas");
