@@ -89,6 +89,39 @@ Any node whose `typeId` matches gets that visual treatment automatically —
 no changes to `GalaxyScene` or the UI are required. See
 `docs/STYLE_GUIDE.md` for the full visual language and extension examples.
 
+## Real execution: the Wasm leaf runtime
+
+The `rust-wasm-leaf` node type is **not simulated**. Spawning one
+instantiates a real sandboxed WebAssembly process compiled from
+`agents/leaf` (no_std Rust, zero dependencies, ~3.6 KB). Each instance:
+
+- gets its **own linear memory and private state** — the `tick` counter
+  lives inside the Wasm heap; two leaves report independent counts;
+- receives **zero ambient authority** — the module is instantiated with an
+  empty import object: no DOM, no network, no other agents;
+- **announces its own tools** — the host reads the module's exported
+  MCP-style JSON manifest at boot and adopts it as the node's capabilities;
+  the inspector's tool chips call straight into compiled Rust
+  (`fnv1a` hashing, `stats` number crunching, `echo`, `tick`);
+- answers **direct messages from inside the process** — replies carry the
+  instance-private tick count as proof of origin.
+
+The plumbing is the `AgentRuntimeProvider` interface (`engine/types.ts`):
+a provider claims node type ids and turns spawn requests into live
+`AgentInstance` handles. `MockGraphEngine` routes lifecycle, tool calls,
+and messages to the owning provider and only simulates types nobody has
+claimed — so runtimes come online one at a time without a flag day.
+
+Rebuild the agent after editing `agents/leaf` (requires the
+`wasm32-unknown-unknown` target):
+
+```sh
+npm run build:agents   # cargo build + copy into public/agents/
+```
+
+The compiled `public/agents/axiom_leaf.wasm` is committed so the app runs
+without a Rust toolchain.
+
 ## How to Connect a Real Backend
 
 The entire surface talks to one interface: `GraphEngine`
@@ -133,17 +166,16 @@ A thin `websockets`/FastAPI layer over your agent registry:
 - LOOM `MarketEvent`s that flow between agents become `message_pulse`
   events keyed to the corresponding edge.
 
-### Rust/Wasm (in-browser leaf agents)
+### Rust/Wasm (in-browser leaf agents) — ALREADY SHIPPED
 
-No network needed — leaf agents can run *inside* the page:
-
-- Compile agent modules to Wasm; a `WasmAgentHost` implementing
-  `GraphEngine` instantiates one sandboxed instance per `spawnNode` call.
-- The Wasm module exports its tool manifest (names + descriptions) at
-  instantiation; the host surfaces them as `capabilities`.
-- `invokeTool` becomes a direct call into the instance's exported function.
-- A hybrid engine can multiplex: Wasm leaves locally, an Elixir core over
-  WebSocket, presented to the surface as one unified graph.
+This one is implemented: `src/runtime/WasmAgentHost.ts` +
+`agents/leaf/`. See "Real execution: the Wasm leaf runtime" above. New
+in-page agent species follow the same recipe: compile any language to a
+Wasm module exporting the four-function ABI (`manifest_ptr`,
+`manifest_len`, `alloc`, `invoke`), then register another `WasmAgentHost`
+pointing at its `.wasm` URL for its node type ids. The hybrid engine
+multiplexes: Wasm leaves locally, an Elixir core over WebSocket, one
+unified graph on the surface.
 
 ## What's out of scope here
 

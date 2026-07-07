@@ -1,0 +1,14 @@
+[package]
+name = "axiom-leaf"
+version = "0.1.0"
+edition = "2021"
+description = "AXIOM leaf agent: a sandboxed Wasm module exposing an MCP-style tool manifest over a minimal linear-memory ABI. Zero dependencies by design."
+
+[lib]
+crate-type = ["cdylib"]
+
+[profile.release]
+opt-level = "z"
+lto = true
+strip = true
+panic = "abort"

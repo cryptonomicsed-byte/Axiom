@@ -94,6 +94,30 @@ export type GraphEvent =
 export type GraphListener = (nodes: AgentNode[], edges: AgentEdge[]) => void;
 export type GraphEventListener = (event: GraphEvent) => void;
 
+/** A live handle to a real agent process owned by a runtime provider. */
+export interface AgentInstance {
+  /** Tools the process actually exports, discovered at spawn (MCP-style manifest). */
+  capabilities: AgentCapability[];
+  invokeTool(tool: string, arg: string): Promise<string>;
+  sendMessage(text: string): Promise<string>;
+  terminate(): void;
+}
+
+/**
+ * A pluggable runtime: anything that can turn a spawn request into a real,
+ * sandboxed agent process — an in-browser Wasm host, a WebSocket bridge to
+ * an Elixir supervisor, a Python worker pool. The engine routes lifecycle
+ * and invocation to the provider that claims the node's typeId; node types
+ * without a provider fall back to whatever the engine does natively (the
+ * demo engine simulates them).
+ */
+export interface AgentRuntimeProvider {
+  /** Node type ids this runtime owns. */
+  typeIds: string[];
+  /** Boot a real agent process for this node. */
+  spawn(node: AgentNode): Promise<AgentInstance>;
+}
+
 /**
  * The interface any backend must implement to drive the galaxy. The demo
  * ships a MockGraphEngine that simulates activity locally; a production
@@ -104,6 +128,9 @@ export type GraphEventListener = (event: GraphEvent) => void;
 export interface GraphEngine {
   registerNodeType(def: NodeTypeDefinition): void;
   getNodeTypes(): NodeTypeDefinition[];
+
+  /** Plug in a real runtime for one or more node types (hot-swappable). */
+  registerRuntime(provider: AgentRuntimeProvider): void;
 
   spawnNode(input: {
     typeId: string;
