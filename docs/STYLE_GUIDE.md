@@ -1,11 +1,16 @@
 # AXIOM Galaxy — Visual Style Guide
 
 The visual language is **cinematic sci-fi over a live runtime**: a deep
-cosmic void, volumetric nebulae, and agents rendered as **celestial
-artifacts** — iridescent shells around breathing energy cores, with
-orbit rings earned through reputation. The governing rule is unchanged
-and non-negotiable: **every luminous or moving thing on screen maps to a
-real runtime fact**. Chrome recedes, runtime glows.
+cosmic void with a faint nebular wash, volumetric nebulae, and agents
+rendered as **celestial artifacts** — iridescent shells wrapped in a
+holographic energy skin around a twin-layer breathing core, with orbit
+rings and anamorphic lens flares earned through reputation. The whole
+frame is finished with a cinematic grade (chromatic aberration, vignette,
+film grain, rolling scanlines). The governing rule is unchanged and
+non-negotiable: **every luminous or moving thing on screen maps to a real
+runtime fact**. Chrome recedes, runtime glows. The grade and the void
+backdrop are the only pure-presentation exceptions — they carry no data,
+they are the lens the runtime is shot through.
 
 ## Palette
 
@@ -32,11 +37,15 @@ Every agent renders as a composite artifact; each layer is a runtime channel:
 | Layer | Construction | Runtime meaning |
 |---|---|---|
 | **Shell** | archetype geometry, physical material (metalness 0.55, clearcoat, iridescence) | the agent's type; slow self-rotation speeds up slightly with activity |
-| **Core** | small emissive sphere inside the shell | live `activity`: breath rate *and* depth scale with it — the heartbeat |
+| **Rim (energy skin)** | additive fresnel `ShaderMaterial` just outside the shell — transparent head-on, blazing at the silhouette | live `activity` (plus reputation floor); focus/hover spike it — the holographic-artifact read |
+| **Core** | translucent emissive sphere inside the shell | live `activity`: breath rate *and* depth scale with it — the heartbeat |
+| **Inner core** | tiny near-white sphere inside the core, counter-pulsing | the hot nucleus; opacity tracks `activity`, gives the core depth under bloom |
 | **Lattice** | faint wireframe of the shell geometry | internal structure; brightens with activity |
 | **Halo** | additive radial-gradient sprite | standing glow; grows with reputation |
+| **Flare (anamorphic)** | additive star-flare sprite (long horizontal + short vertical streak) | **earned**: dark below 0.6 reputation, then brightens with reputation and twinkles with activity — the "capital ship" / god-ray read |
 | **Orbit rings** | thin additive tori + spin | **earned**: 0 rings below 0.45 reputation, 1 to 0.72, 2 above; spin rate follows activity |
 | **Selection rings** | two counter-rotating cyan holo-tori | inspection focus only |
+| **Scan-pulse** | camera-billboarded ring that expands outward once on select | fires the instant a node is selected; ~0.9s, presentation-only feedback |
 
 ### Shell archetypes
 
@@ -62,6 +71,9 @@ biggest, brightest, busiest object in frame — without any label.
 | Visual | Runtime meaning |
 |---|---|
 | Core breath (rate + depth) | agent's live `activity` |
+| Rim / energy-skin glow | `activity` (floor from reputation); spikes on hover/focus |
+| Anamorphic flare brightness + twinkle | reputation (tier gate at 0.6) × `activity` |
+| Scan-pulse ring expanding outward | a node was just selected (one-shot) |
 | Orbit ring spin rate | `activity` |
 | Edge plasma stream (speed, brightness, particle size) | channel `activity` (message volume) |
 | Data packet orb travelling an edge | one discrete `message_pulse` — a real A2A message |
@@ -73,7 +85,32 @@ biggest, brightest, busiest object in frame — without any label.
 | Slow global scene rotation | none — ambience only, the single allowed exception |
 
 Timing: births ~1.25s, deaths ~0.75s (abrupt is intentional), packets
-~0.9s, focus lerp 0.1–0.15/frame, UI transitions 150–450ms ease.
+~0.9s, scan-pulse ~0.9s, focus lerp 0.1–0.15/frame, UI transitions
+150–450ms ease.
+
+## Cinematic grade & environment
+
+The scene composites in three passes (`GalaxyScene` + `scene/postfx.ts`):
+
+1. **Render pass** — the lit scene.
+2. **UnrealBloom** — cores/flares/edges are the brightest things in frame,
+   so bloom reads as energy, not haze (strength 1.15, threshold 0.1).
+3. **Cinematic grade** (`createCinematicPass`) — a full-frame shader:
+   edge-weighted chromatic aberration (anamorphic fringing), a quadratic
+   vignette that keeps the eye centre-frame, faint rolling scanlines, and
+   animated luminance-only film grain. Values are deliberately restrained
+   (aberration 0.55, grain 0.05, scanline 0.035) — "shot on a lens", never
+   an Instagram filter. If it fights legibility, it is turned down.
+
+Behind everything sits the **void backdrop** (`createVoidBackdrop`): an
+inside-out gradient sphere, near-black with a warm-cool vertical wash and a
+faint nebular brightening toward the horizon, so deep space reads as
+atmosphere rather than a flat black card. It has `depthWrite` off and never
+occludes the swarm.
+
+Keep the grade and backdrop **subtle and neutral**. They are the one place
+the surface is allowed to editorialize; they must not tint node-type
+colors or drown the bloom that carries real runtime state.
 
 ## UI chrome
 

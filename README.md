@@ -34,7 +34,11 @@ src/
   scene/
     GalaxyScene.ts       Three.js rendering: snapshot reconciliation plus
                          event-driven effects (birth bursts, death implosions,
-                         particle-flow edges, pulsing cores, nebulae, bloom)
+                         particle-flow edges, breathing cores, fresnel energy
+                         skins, anamorphic flares, nebulae, bloom)
+    postfx.ts            cinematic grade (chromatic aberration, vignette,
+                         film grain, scanlines), fresnel rim material, star-
+                         flare + glow textures, and the void backdrop
     layout.ts            spherical layout for nodes without an explicit
                          position
   ui/
