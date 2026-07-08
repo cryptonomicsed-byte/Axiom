@@ -57,6 +57,17 @@ export const DEFAULT_NODE_TYPES: NodeTypeDefinition[] = [
     geometry: "toroid",
     birthEffect: "burst",
   },
+  {
+    id: "fractal-oracle",
+    label: "Fractal Oracle",
+    description:
+      "Mandelbrot dynamics engine (real Wasm). Scans strategy/market/swarm space: bounded orbits are robust islands, escape times map fragility. Its shell renders a live escape-time fractal.",
+    color: 0x8a5cff,
+    accentColor: 0xffd27a,
+    scale: 1.5,
+    geometry: "geodesic",
+    birthEffect: "burst",
+  },
 ];
 
 export function registerDefaultNodeTypes(engine: GraphEngine): void {

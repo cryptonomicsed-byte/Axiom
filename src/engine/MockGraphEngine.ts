@@ -175,13 +175,13 @@ export class MockGraphEngine implements GraphEngine {
     return edge;
   }
 
-  async invokeTool(nodeId: string, tool: string): Promise<string> {
+  async invokeTool(nodeId: string, tool: string, arg = ""): Promise<string> {
     const node = this.nodes.get(nodeId);
     if (!node) throw new Error(`Node ${nodeId} not found`);
     const instance = this.instances.get(nodeId);
     let result: string;
     if (instance) {
-      result = await instance.invokeTool(tool, "");
+      result = await instance.invokeTool(tool, arg);
     } else {
       await delay(300 + Math.random() * 500);
       result = TOOL_RESULTS[Math.floor(Math.random() * TOOL_RESULTS.length)];
@@ -269,9 +269,12 @@ export class MockGraphEngine implements GraphEngine {
     for (const [id, node] of this.nodes) {
       if (node.status !== "active") continue;
       let activity = clamp(node.activity + (Math.random() - 0.53) * 0.14);
-      if (Math.random() < 0.012) activity = 1; // surge: a burst of real work arrives
-      // Busy agents earn reputation; idle ones slowly bleed it.
-      const earn = (node.activity - 0.35) * 0.006;
+      const surged = Math.random() < 0.012; // a burst of real work arrives
+      if (surged) activity = 1;
+      // Busy agents earn reputation; idle ones slowly bleed it. A work surge
+      // pays a reputation bonus, so an agent can visibly ascend into the
+      // flare/god-ray tier (reputation > 0.6) live on screen.
+      const earn = (node.activity - 0.35) * 0.006 + (surged ? 0.03 : 0);
       const reputation = clamp(node.reputation + earn + (Math.random() - 0.5) * 0.008);
       if (Math.abs(activity - node.activity) > 0.001 || reputation !== node.reputation) {
         this.nodes.set(id, { ...node, activity, reputation });

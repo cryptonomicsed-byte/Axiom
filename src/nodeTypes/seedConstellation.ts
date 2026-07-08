@@ -42,6 +42,17 @@ export function seedConstellation(engine: GraphEngine): void {
     capabilities: [{ name: "graph-analytics", description: "Heavy graph-compute passes" }],
   });
 
+  const oracle = engine.spawnNode({
+    typeId: "fractal-oracle",
+    label: "fractal-oracle",
+    framework: "Rust/Wasm",
+    reputation: 0.8,
+    capabilities: [
+      { name: "mandelbrot_scan", description: "Escape-time grid over a region of strategy/market space" },
+      { name: "escape_time_risk", description: "Fragility of a single point c (robust island vs escape zone)" },
+    ],
+  });
+
   const leaves = Array.from({ length: 5 }, (_, i) =>
     engine.spawnNode({
       typeId: "rust-wasm-leaf",
@@ -54,6 +65,8 @@ export function seedConstellation(engine: GraphEngine): void {
   engine.connect(core.id, fabric.id);
   engine.connect(core.id, surface.id);
   engine.connect(core.id, compute.id);
+  engine.connect(core.id, oracle.id);
+  engine.connect(oracle.id, compute.id);
   for (const leaf of leaves) {
     engine.connect(fabric.id, leaf.id);
   }

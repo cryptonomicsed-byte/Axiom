@@ -3,8 +3,20 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
+import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
 import type { AgentEdge, AgentNode, GraphEvent, NodeTypeDefinition } from "../engine/types";
 import { assignPosition } from "./layout";
+import {
+  createCinematicPass,
+  createFractalMaterial,
+  createRimMaterial,
+  createVoidBackdrop,
+  makeGlowTexture,
+  makeStarFlareTexture,
+} from "./postfx";
+
+/** Reputation above which a node earns an anamorphic flare + god-ray shafts. */
+const FLARE_THRESHOLD = 0.6;
 
 const EDGE_PARTICLES = 6;
 const GOLD = 0xffd27a;
@@ -43,24 +55,6 @@ function shellGeometry(kind: NodeTypeDefinition["geometry"]): THREE.BufferGeomet
   return geometry;
 }
 
-/** Radial-gradient sprite texture shared by glows, nebulae, and particles. */
-function makeGlowTexture(): THREE.Texture {
-  const size = 128;
-  const canvas = document.createElement("canvas");
-  canvas.width = size;
-  canvas.height = size;
-  const ctx = canvas.getContext("2d")!;
-  const gradient = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
-  gradient.addColorStop(0, "rgba(255,255,255,1)");
-  gradient.addColorStop(0.25, "rgba(255,255,255,0.5)");
-  gradient.addColorStop(1, "rgba(255,255,255,0)");
-  ctx.fillStyle = gradient;
-  ctx.fillRect(0, 0, size, size);
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.needsUpdate = true;
-  return texture;
-}
-
 /** How many orbit rings an agent has earned. Reputation IS the hierarchy. */
 function ringCountFor(reputation: number): number {
   if (reputation > 0.72) return 2;
@@ -78,11 +72,21 @@ interface NodeVisual {
   group: THREE.Group;
   shell: THREE.Mesh;
   shellMaterial: THREE.MeshPhysicalMaterial;
+  rim: THREE.Mesh;
+  rimMaterial: THREE.ShaderMaterial;
   lattice: THREE.Mesh;
   latticeMaterial: THREE.MeshBasicMaterial;
   core: THREE.Mesh;
   coreMaterial: THREE.MeshBasicMaterial;
+  innerCore: THREE.Mesh;
+  innerCoreMaterial: THREE.MeshBasicMaterial;
+  /** Fractal Oracle only: live Mandelbrot shell shader. */
+  fractal?: THREE.Mesh;
+  fractalMaterial?: THREE.ShaderMaterial;
   halo: THREE.Sprite;
+  /** Anamorphic lens flare + god-ray read, only lit for high-reputation nodes. */
+  flare: THREE.Sprite;
+  flareMaterial: THREE.SpriteMaterial;
   orbitGroup: THREE.Group;
   rings: OrbitRing[];
   ringCount: number;
@@ -92,6 +96,15 @@ interface NodeVisual {
   /** Random phase so pulses don't sync across the swarm. */
   phase: number;
   spinAxis: THREE.Vector3;
+}
+
+/** Expanding holographic disc emitted when a node is selected. */
+interface ScanPulse {
+  mesh: THREE.Mesh;
+  material: THREE.MeshBasicMaterial;
+  bornAt: number;
+  lifeMs: number;
+  maxRadius: number;
 }
 
 interface EdgeVisual {
@@ -143,12 +156,15 @@ export class GalaxyScene {
   private pointer = new THREE.Vector2();
   private clock = new THREE.Clock();
   private glowTexture = makeGlowTexture();
+  private flareTexture = makeStarFlareTexture();
+  private cinematicPass: ShaderPass;
 
   private nodeVisuals = new Map<string, NodeVisual>();
   private edgeVisuals = new Map<string, EdgeVisual>();
   private nodeTypes = new Map<string, NodeTypeDefinition>();
   private effects: TransientEffect[] = [];
   private packets: DataPacket[] = [];
+  private scanPulses: ScanPulse[] = [];
   private nebulae: { sprite: THREE.Sprite; basePosition: THREE.Vector3; drift: number }[] = [];
 
   private selectedId: string | null = null;
@@ -187,6 +203,7 @@ export class GalaxyScene {
     rim.position.set(-30, -15, -25);
     this.scene.add(rim);
 
+    this.scene.add(createVoidBackdrop());
     this.buildStarfield();
     this.buildNebulae();
 
@@ -194,11 +211,14 @@ export class GalaxyScene {
     this.composer.addPass(new RenderPass(this.scene, this.camera));
     const bloom = new UnrealBloomPass(
       new THREE.Vector2(container.clientWidth, container.clientHeight),
-      1.15, // strength — expensive-looking glow, cores are the brightest thing on screen
+      0.95, // strength — glow reads as energy; kept below full white-out
       0.7, // radius
-      0.1 // threshold
+      0.16 // threshold — only the genuinely hot emitters bloom, keeps forms readable
     );
     this.composer.addPass(bloom);
+    // Cinematic grade sits last: aberration, vignette, grain, scanlines.
+    this.cinematicPass = createCinematicPass();
+    this.composer.addPass(this.cinematicPass);
 
     this.renderer.domElement.addEventListener("click", (event) => this.handleClick(event));
     this.renderer.domElement.addEventListener("pointermove", (event) => this.handlePointerMove(event));
@@ -255,6 +275,11 @@ export class GalaxyScene {
 
   focusOn(nodeId: string): void {
     this.selectedId = nodeId;
+    const visual = this.nodeVisuals.get(nodeId);
+    if (visual) {
+      const def = this.nodeTypes.get(visual.node.typeId);
+      this.spawnScanPulse(visual.group.position, def?.accentColor ?? def?.color ?? 0x4fd1ff);
+    }
   }
 
   clearFocus(): void {
@@ -290,6 +315,12 @@ export class GalaxyScene {
     const shell = new THREE.Mesh(shellGeometry(def?.geometry ?? "orb"), shellMaterial);
     shell.userData.nodeId = node.id;
 
+    // Fresnel energy skin: transparent head-on, blazing at the silhouette —
+    // turns the solid shell into a glowing hologram. Intensity is live.
+    const rimMaterial = createRimMaterial(accent);
+    const rim = new THREE.Mesh(shellGeometry(def?.geometry ?? "orb"), rimMaterial);
+    rim.scale.setScalar(1.14);
+
     // Internal lattice: faint wireframe skeleton visible through the shell.
     const latticeMaterial = new THREE.MeshBasicMaterial({
       color: accent,
@@ -309,6 +340,15 @@ export class GalaxyScene {
     });
     const core = new THREE.Mesh(new THREE.SphereGeometry(0.42, 20, 14), coreMaterial);
 
+    // Inner core: a small near-white singularity, the hottest emitter — reads
+    // as a plasma nucleus through the translucent outer core under bloom.
+    const innerCoreMaterial = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.9,
+    });
+    const innerCore = new THREE.Mesh(new THREE.SphereGeometry(0.16, 16, 12), innerCoreMaterial);
+
     const halo = new THREE.Sprite(
       new THREE.SpriteMaterial({
         map: this.glowTexture,
@@ -320,6 +360,20 @@ export class GalaxyScene {
       })
     );
     halo.scale.setScalar(4.5);
+
+    // Anamorphic lens flare + god-ray read: dark until reputation crosses the
+    // flare threshold, then a wide horizontal streak marks the "capital ship".
+    const flareMaterial = new THREE.SpriteMaterial({
+      map: this.flareTexture,
+      color: accent,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+      depthTest: false,
+      blending: THREE.AdditiveBlending,
+    });
+    const flare = new THREE.Sprite(flareMaterial);
+    flare.scale.set(16, 16, 1);
 
     // Orbit system: rings + micro-particles, earned by reputation.
     const orbitGroup = new THREE.Group();
@@ -341,8 +395,18 @@ export class GalaxyScene {
       selectionRings.push(ring);
     }
 
+    // Fractal Oracle: a live Mandelbrot shader glowing inside the shell.
+    let fractal: THREE.Mesh | undefined;
+    let fractalMaterial: THREE.ShaderMaterial | undefined;
+    if (def?.id === "fractal-oracle") {
+      fractalMaterial = createFractalMaterial(color, accent);
+      fractal = new THREE.Mesh(shellGeometry("orb"), fractalMaterial);
+      fractal.scale.setScalar(0.9);
+    }
+
     const group = new THREE.Group();
-    group.add(shell, lattice, core, halo, orbitGroup, ...selectionRings);
+    group.add(shell, rim, lattice, core, innerCore, halo, flare, orbitGroup, ...selectionRings);
+    if (fractal) group.add(fractal);
     group.position.set(...position);
     this.scene.add(group);
 
@@ -350,11 +414,19 @@ export class GalaxyScene {
       group,
       shell,
       shellMaterial,
+      rim,
+      rimMaterial,
       lattice,
       latticeMaterial,
       core,
       coreMaterial,
+      innerCore,
+      innerCoreMaterial,
       halo,
+      flare,
+      flareMaterial,
+      fractal,
+      fractalMaterial,
       orbitGroup,
       rings: [],
       ringCount: -1,
@@ -429,10 +501,15 @@ export class GalaxyScene {
       if (!seen.has(id)) {
         this.scene.remove(visual.group);
         visual.shellMaterial.dispose();
+        visual.rimMaterial.dispose();
         visual.latticeMaterial.dispose();
         visual.core.geometry.dispose();
         visual.coreMaterial.dispose();
+        visual.innerCore.geometry.dispose();
+        visual.innerCoreMaterial.dispose();
         (visual.halo.material as THREE.Material).dispose();
+        visual.flareMaterial.dispose();
+        visual.fractalMaterial?.dispose();
         for (const ring of visual.rings) {
           ring.mesh.geometry.dispose();
           (ring.mesh.material as THREE.Material).dispose();
@@ -537,11 +614,36 @@ export class GalaxyScene {
     });
   }
 
+  /** Holographic ring that projects outward from a node the instant it's selected. */
+  private spawnScanPulse(origin: THREE.Vector3, color: number): void {
+    const mesh = new THREE.Mesh(
+      new THREE.RingGeometry(0.9, 1.0, 64),
+      new THREE.MeshBasicMaterial({
+        color,
+        transparent: true,
+        opacity: 0.9,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+      })
+    );
+    mesh.position.copy(origin);
+    this.scene.add(mesh);
+    this.scanPulses.push({
+      mesh,
+      material: mesh.material as THREE.MeshBasicMaterial,
+      bornAt: performance.now(),
+      lifeMs: 900,
+      maxRadius: 6,
+    });
+  }
+
   // --- Per-frame animation ---------------------------------------------------
 
   private tickVisuals(elapsed: number, delta: number): void {
     for (const visual of this.nodeVisuals.values()) {
-      const { node, shellMaterial, latticeMaterial, core, coreMaterial, halo, group } = visual;
+      const { node, shellMaterial, latticeMaterial, core, coreMaterial, innerCore, innerCoreMaterial, halo, group } =
+        visual;
       const isSelected = node.id === this.selectedId;
       const isHovered = node.id === this.hoveredId;
 
@@ -550,6 +652,9 @@ export class GalaxyScene {
       const coreScale = 0.75 + breath * (0.35 + node.activity * 0.5);
       core.scale.setScalar(coreScale);
       coreMaterial.opacity = 0.55 + breath * 0.45;
+      // Inner nucleus pulses counter to the breath so the core has depth.
+      innerCore.scale.setScalar(0.7 + breath * 0.6);
+      innerCoreMaterial.opacity = 0.55 + node.activity * 0.3;
 
       // Shell emissive + halo: reputation raises the floor, selection spikes it.
       let shellGlow = 0.1 + node.reputation * 0.25 + node.activity * 0.3 * breath;
@@ -557,9 +662,33 @@ export class GalaxyScene {
       else if (isHovered) shellGlow += 0.3;
       shellMaterial.emissiveIntensity = shellGlow;
       latticeMaterial.opacity = 0.08 + node.activity * 0.18;
+
+      // Fresnel skin: activity animates the silhouette glow; focus intensifies.
+      let rimGlow = 0.28 + node.activity * 0.5 + node.reputation * 0.2 + breath * 0.12;
+      if (isSelected) rimGlow += 0.6;
+      else if (isHovered) rimGlow += 0.35;
+      visual.rimMaterial.uniforms.uIntensity.value = rimGlow;
+      visual.rim.rotation.copy(visual.shell.rotation);
+
       halo.material.opacity =
         0.16 + node.reputation * 0.18 + node.activity * 0.2 + (isSelected ? 0.25 : 0);
       halo.scale.setScalar(4 + node.reputation * 2.5);
+
+      // Anamorphic flare / god-ray: only high-reputation nodes earn it, and it
+      // twinkles with activity so the brightest agent visibly throbs.
+      const flareStrength = Math.max(0, node.reputation - FLARE_THRESHOLD) / (1 - FLARE_THRESHOLD);
+      const twinkle = 0.75 + 0.25 * Math.sin(elapsed * 3 + visual.phase);
+      visual.flareMaterial.opacity =
+        flareStrength * (0.28 + node.activity * 0.4) * twinkle + (isSelected ? flareStrength * 0.3 : 0);
+      const flareSize = 7 + flareStrength * 10 + node.activity * 3;
+      visual.flare.scale.set(flareSize, flareSize, 1);
+
+      // Fractal Oracle: drive the live Mandelbrot shell from real activity.
+      if (visual.fractalMaterial && visual.fractal) {
+        visual.fractalMaterial.uniforms.uTime.value = elapsed;
+        visual.fractalMaterial.uniforms.uActivity.value = 0.25 + node.activity * 0.75;
+        visual.fractal.rotateOnAxis(visual.spinAxis, delta * 0.08);
+      }
 
       // Slow artifact rotation; orbit system spins with activity.
       visual.shell.rotateOnAxis(visual.spinAxis, delta * (0.15 + node.activity * 0.35));
@@ -629,6 +758,22 @@ export class GalaxyScene {
       packet.sprite.position.lerpVectors(source.group.position, target.group.position, eased);
       packet.material.opacity = age < 0.8 ? 1 : (1 - age) / 0.2;
       packet.sprite.scale.setScalar(1.1 - age * 0.5);
+      return true;
+    });
+
+    // Selection scan-pulses: expand outward, billboard the camera, fade.
+    this.scanPulses = this.scanPulses.filter((pulse) => {
+      const age = (now - pulse.bornAt) / pulse.lifeMs;
+      if (age >= 1) {
+        this.scene.remove(pulse.mesh);
+        pulse.mesh.geometry.dispose();
+        pulse.material.dispose();
+        return false;
+      }
+      const eased = 1 - Math.pow(1 - age, 3);
+      pulse.mesh.scale.setScalar(0.5 + eased * pulse.maxRadius);
+      pulse.mesh.quaternion.copy(this.camera.quaternion);
+      pulse.material.opacity = (1 - age) * 0.9;
       return true;
     });
 
@@ -834,6 +979,7 @@ export class GalaxyScene {
     this.controls.update();
     this.scene.rotation.y += delta * 0.012;
     this.tickVisuals(elapsed, delta);
+    this.cinematicPass.uniforms.uTime.value = elapsed;
     this.composer.render();
   };
 }
