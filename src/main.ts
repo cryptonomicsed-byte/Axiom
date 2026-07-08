@@ -22,6 +22,11 @@ registerDefaultNodeTypes(engine);
 // inside the instance — only the remaining node types are simulated.
 engine.registerRuntime(new WasmAgentHost("/agents/axiom_leaf.wasm", ["rust-wasm-leaf"]));
 
+// Fractal Oracle: a real Wasm Mandelbrot engine. Its tools (mandelbrot_scan,
+// escape_time_risk, robust_island_query, …) execute inside the sandbox; the
+// inspector's explorer and the node's shader read straight from it.
+engine.registerRuntime(new WasmAgentHost("/agents/axiom_oracle.wasm", ["fractal-oracle"]));
+
 seedConstellation(engine);
 
 const canvas = document.getElementById("axiom-canvas");

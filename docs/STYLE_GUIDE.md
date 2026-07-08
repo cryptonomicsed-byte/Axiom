@@ -59,6 +59,17 @@ Every agent renders as a composite artifact; each layer is a runtime channel:
 | `prism` | hexagonal column | TypeScript surface — architectural, interface-like |
 | `toroid` | ring around an exposed core | Julia compute — cyclical heavy machinery |
 
+### Special shell: the Fractal Oracle
+
+The `fractal-oracle` type keeps a readable `geodesic` silhouette but swaps a
+layer for a **live Mandelbrot shader** (`createFractalMaterial`): the escape-time
+set is computed per-fragment, panning slowly, bounded (in-set) points blazing
+gold — the "robust islands". Its brightness is driven by the node's real
+`activity`, and the inspector's Mandelbrot Explorer paints from the same Wasm
+oracle. This is the pattern for any future compute-node that wants its *own
+computation* rendered on its skin: a bespoke `ShaderMaterial` keyed on the type
+id, everything else (core, rim, halo, rings) inherited from the artifact system.
+
 ### Visual hierarchy = runtime hierarchy
 
 Size, glow floor, halo radius, and ring count all derive from

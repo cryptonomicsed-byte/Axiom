@@ -175,13 +175,13 @@ export class MockGraphEngine implements GraphEngine {
     return edge;
   }
 
-  async invokeTool(nodeId: string, tool: string): Promise<string> {
+  async invokeTool(nodeId: string, tool: string, arg = ""): Promise<string> {
     const node = this.nodes.get(nodeId);
     if (!node) throw new Error(`Node ${nodeId} not found`);
     const instance = this.instances.get(nodeId);
     let result: string;
     if (instance) {
-      result = await instance.invokeTool(tool, "");
+      result = await instance.invokeTool(tool, arg);
     } else {
       await delay(300 + Math.random() * 500);
       result = TOOL_RESULTS[Math.floor(Math.random() * TOOL_RESULTS.length)];

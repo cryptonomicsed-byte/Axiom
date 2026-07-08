@@ -8,6 +8,7 @@ import type { AgentEdge, AgentNode, GraphEvent, NodeTypeDefinition } from "../en
 import { assignPosition } from "./layout";
 import {
   createCinematicPass,
+  createFractalMaterial,
   createRimMaterial,
   createVoidBackdrop,
   makeGlowTexture,
@@ -79,6 +80,9 @@ interface NodeVisual {
   coreMaterial: THREE.MeshBasicMaterial;
   innerCore: THREE.Mesh;
   innerCoreMaterial: THREE.MeshBasicMaterial;
+  /** Fractal Oracle only: live Mandelbrot shell shader. */
+  fractal?: THREE.Mesh;
+  fractalMaterial?: THREE.ShaderMaterial;
   halo: THREE.Sprite;
   /** Anamorphic lens flare + god-ray read, only lit for high-reputation nodes. */
   flare: THREE.Sprite;
@@ -391,8 +395,18 @@ export class GalaxyScene {
       selectionRings.push(ring);
     }
 
+    // Fractal Oracle: a live Mandelbrot shader glowing inside the shell.
+    let fractal: THREE.Mesh | undefined;
+    let fractalMaterial: THREE.ShaderMaterial | undefined;
+    if (def?.id === "fractal-oracle") {
+      fractalMaterial = createFractalMaterial(color, accent);
+      fractal = new THREE.Mesh(shellGeometry("orb"), fractalMaterial);
+      fractal.scale.setScalar(0.9);
+    }
+
     const group = new THREE.Group();
     group.add(shell, rim, lattice, core, innerCore, halo, flare, orbitGroup, ...selectionRings);
+    if (fractal) group.add(fractal);
     group.position.set(...position);
     this.scene.add(group);
 
@@ -411,6 +425,8 @@ export class GalaxyScene {
       halo,
       flare,
       flareMaterial,
+      fractal,
+      fractalMaterial,
       orbitGroup,
       rings: [],
       ringCount: -1,
@@ -493,6 +509,7 @@ export class GalaxyScene {
         visual.innerCoreMaterial.dispose();
         (visual.halo.material as THREE.Material).dispose();
         visual.flareMaterial.dispose();
+        visual.fractalMaterial?.dispose();
         for (const ring of visual.rings) {
           ring.mesh.geometry.dispose();
           (ring.mesh.material as THREE.Material).dispose();
@@ -665,6 +682,13 @@ export class GalaxyScene {
         flareStrength * (0.28 + node.activity * 0.4) * twinkle + (isSelected ? flareStrength * 0.3 : 0);
       const flareSize = 7 + flareStrength * 10 + node.activity * 3;
       visual.flare.scale.set(flareSize, flareSize, 1);
+
+      // Fractal Oracle: drive the live Mandelbrot shell from real activity.
+      if (visual.fractalMaterial && visual.fractal) {
+        visual.fractalMaterial.uniforms.uTime.value = elapsed;
+        visual.fractalMaterial.uniforms.uActivity.value = 0.25 + node.activity * 0.75;
+        visual.fractal.rotateOnAxis(visual.spinAxis, delta * 0.08);
+      }
 
       // Slow artifact rotation; orbit system spins with activity.
       visual.shell.rotateOnAxis(visual.spinAxis, delta * (0.15 + node.activity * 0.35));

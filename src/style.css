@@ -455,6 +455,42 @@ body {
   margin-top: 0.9rem;
 }
 
+/* --- Mandelbrot explorer (Fractal Oracle) ------------------------------- */
+
+.axiom-fractal {
+  border: 1px solid var(--axiom-glass-border);
+  border-radius: 0.5rem;
+  overflow: hidden;
+  background: #05060f;
+}
+
+.axiom-fractal__canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  image-rendering: pixelated;
+  cursor: zoom-in;
+}
+
+.axiom-fractal__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.35rem 0.5rem;
+  background: rgba(10, 12, 24, 0.7);
+  border-top: 1px solid var(--axiom-glass-border);
+}
+
+.axiom-fractal__verdict {
+  font-size: 0.66rem;
+  font-family: ui-monospace, monospace;
+  color: var(--axiom-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* --- Responsive --------------------------------------------------------- */
 
 @media (max-width: 760px) {

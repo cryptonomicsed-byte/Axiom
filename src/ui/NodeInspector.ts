@@ -56,6 +56,18 @@ export class NodeInspector {
         }
       </div>
       <div class="axiom-inspector__toolresult" data-field="toolresult"></div>
+      ${
+        node.capabilities.some((c) => c.name === "mandelbrot_scan")
+          ? `<h3>Mandelbrot Explorer</h3>
+      <div class="axiom-fractal">
+        <canvas class="axiom-fractal__canvas" data-field="fractalcanvas" title="click to zoom in"></canvas>
+        <div class="axiom-fractal__bar">
+          <span class="axiom-fractal__verdict" data-field="fractalverdict">scanning…</span>
+          <button class="axiom-btn axiom-btn--small" data-field="fractalreset">Reset view</button>
+        </div>
+      </div>`
+          : ""
+      }
       <h3>Memory</h3>
       <ul class="axiom-inspector__memory" data-field="memory"></ul>
       <h3>Direct message</h3>
@@ -72,6 +84,97 @@ export class NodeInspector {
 
     this.renderMemory(node);
     this.bindActions(node);
+    this.mountFractal(node);
+  }
+
+  /**
+   * Interactive Mandelbrot explorer. Paints the escape-time set straight from
+   * the Fractal Oracle's own `mandelbrot_scan` tool (real Wasm), colouring
+   * bounded points gold ("robust islands"). Click to zoom in on the strategy
+   * space; the centre's fragility verdict comes from `escape_time_risk`.
+   */
+  private mountFractal(node: AgentNode): void {
+    const canvas = this.root.querySelector<HTMLCanvasElement>('[data-field="fractalcanvas"]');
+    if (!canvas) return;
+    const verdictEl = this.root.querySelector<HTMLElement>('[data-field="fractalverdict"]');
+    const W = 176;
+    const H = 120;
+    canvas.width = W;
+    canvas.height = H;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const home = { re0: -2.5, re1: 1.0, im0: -1.25, im1: 1.25 };
+    let view = { ...home };
+    const maxiter = 160;
+
+    const colorFor = (e: number, max: number): [number, number, number] => {
+      if (e >= max) return [255, 210, 122]; // bounded → robust island (gold)
+      const t = e / max;
+      return [
+        Math.round(40 + 210 * Math.pow(t, 0.75)),
+        Math.round(20 + 150 * t),
+        Math.round(90 + 150 * (1 - Math.abs(0.5 - t) * 2)),
+      ];
+    };
+
+    const render = async () => {
+      try {
+        const raw = await this.engine.invokeTool(
+          node.id,
+          "mandelbrot_scan",
+          `${view.re0},${view.re1},${view.im0},${view.im1},${W},${H},${maxiter}`
+        );
+        const data = JSON.parse(raw) as { w: number; h: number; maxiter: number; esc: number[] };
+        const img = ctx.createImageData(data.w, data.h);
+        for (let i = 0; i < data.esc.length; i++) {
+          const [r, g, b] = colorFor(data.esc[i], data.maxiter);
+          const o = i * 4;
+          img.data[o] = r;
+          img.data[o + 1] = g;
+          img.data[o + 2] = b;
+          img.data[o + 3] = 255;
+        }
+        ctx.putImageData(img, 0, 0);
+      } catch (error) {
+        if (verdictEl) verdictEl.textContent = `scan failed: ${String(error)}`;
+      }
+    };
+
+    const updateVerdict = async () => {
+      const cRe = (view.re0 + view.re1) / 2;
+      const cIm = (view.im0 + view.im1) / 2;
+      try {
+        const raw = await this.engine.invokeTool(node.id, "escape_time_risk", `${cRe},${cIm},400`);
+        const v = JSON.parse(raw) as { verdict: string; stability: number };
+        if (verdictEl)
+          verdictEl.textContent = `center (${cRe.toFixed(3)}, ${cIm.toFixed(3)}) → ${v.verdict} · stability ${v.stability.toFixed(2)}`;
+      } catch {
+        /* ignore */
+      }
+    };
+
+    canvas.addEventListener("click", (event) => {
+      const rect = canvas.getBoundingClientRect();
+      const fx = (event.clientX - rect.left) / rect.width;
+      const fy = (event.clientY - rect.top) / rect.height;
+      const cRe = view.re0 + (view.re1 - view.re0) * fx;
+      const cIm = view.im0 + (view.im1 - view.im0) * fy;
+      const spanRe = (view.re1 - view.re0) * 0.25; // zoom 2× (half-span each side)
+      const spanIm = (view.im1 - view.im0) * 0.25;
+      view = { re0: cRe - spanRe, re1: cRe + spanRe, im0: cIm - spanIm, im1: cIm + spanIm };
+      render();
+      updateVerdict();
+    });
+
+    this.root.querySelector('[data-field="fractalreset"]')?.addEventListener("click", () => {
+      view = { ...home };
+      render();
+      updateVerdict();
+    });
+
+    render();
+    updateVerdict();
   }
 
   /** Patches live fields if the shown node is still present; closes if it died. */

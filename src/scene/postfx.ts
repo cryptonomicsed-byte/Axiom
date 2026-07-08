@@ -182,6 +182,62 @@ export function createRimMaterial(color: number): THREE.ShaderMaterial {
 }
 
 /**
+ * Live escape-time Mandelbrot rendered onto a node's shell. Worn only by the
+ * Fractal Oracle: the fragment shader iterates z=z²+c per pixel over a slowly
+ * panning/zooming window, colours by escape time (bounded/in-set points glow
+ * gold — the "robust islands"), and modulates brightness by the agent's live
+ * activity. Additive so it reads as an internal fractal glow, not a texture.
+ */
+export function createFractalMaterial(colorA: number, colorB: number): THREE.ShaderMaterial {
+  return new THREE.ShaderMaterial({
+    uniforms: {
+      uTime: { value: 0 },
+      uActivity: { value: 0.5 },
+      uColorA: { value: new THREE.Color(colorA) },
+      uColorB: { value: new THREE.Color(colorB) },
+    },
+    vertexShader: /* glsl */ `
+      varying vec3 vPos;
+      void main() {
+        vPos = position;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: /* glsl */ `
+      precision highp float;
+      varying vec3 vPos;
+      uniform float uTime;
+      uniform float uActivity;
+      uniform vec3 uColorA;
+      uniform vec3 uColorB;
+      void main() {
+        // Slowly breathe the window around the seahorse valley.
+        float zoom = 1.5 + 0.55 * sin(uTime * 0.05);
+        vec2 center = vec2(-0.75 + 0.14 * sin(uTime * 0.03), 0.11 * cos(uTime * 0.045));
+        vec2 c = center + vPos.xy * zoom;
+        vec2 z = vec2(0.0);
+        const int MAX = 72;
+        int it = MAX;
+        for (int i = 0; i < MAX; i++) {
+          z = vec2(z.x * z.x - z.y * z.y, 2.0 * z.x * z.y) + c;
+          if (dot(z, z) > 4.0) { it = i; break; }
+        }
+        bool bounded = dot(z, z) <= 4.0;
+        float t = float(it) / float(MAX);
+        // Smooth escape-time band → accent gradient; in-set points blaze gold.
+        vec3 col = mix(uColorA, uColorB, pow(t, 0.6));
+        if (bounded) col = uColorB * 1.5;
+        float glow = (0.22 + 0.78 * uActivity) * (bounded ? 1.0 : 0.25 + 0.75 * t);
+        gl_FragColor = vec4(col * glow, glow);
+      }
+    `,
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+  });
+}
+
+/**
  * Inside-out gradient sphere that sits behind everything: a not-quite-black
  * void with a faint warm-cool vertical wash, so the frame reads as deep space
  * with atmosphere rather than a flat black card. Rendered on the back faces

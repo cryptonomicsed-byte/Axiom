@@ -126,6 +126,39 @@ npm run build:agents   # cargo build + copy into public/agents/
 The compiled `public/agents/axiom_leaf.wasm` is committed so the app runs
 without a Rust toolchain.
 
+## The Fractal Oracle: Mandelbrot dynamics as a live agent
+
+The `fractal-oracle` node type is a **second, distinct Wasm species**
+(`agents/oracle`) — the same four-function ABI as the leaf, but its tools
+compute Mandelbrot escape-time dynamics (`z → z² + c`, escape at |z| > 2).
+The iteration is the primitive: a point `c` whose orbit stays **bounded is a
+robust island** (a stable, low-fragility attractor); a point that **escapes
+quickly is an escape zone** (brittle — blows up under a regime shift); late
+escapes are the **fragile boundary**. That maps onto strategy-parameter
+robustness, market-structure persistence, and swarm stability.
+
+Its MCP-style manifest self-announces five tools, all executing inside the
+sandbox:
+
+- `mandelbrot_scan` — escape-time grid over a region (`re0,re1,im0,im1,w,h[,maxiter]`);
+- `escape_time_risk` — fragility of a single point `c` (bounded / stability / risk / verdict);
+- `robust_island_query` — is `c` a robust island? (bounded + depth + stability);
+- `fractal_signal_filter` — classify a numeric series as bounded (accumulation) vs divergent (breakout);
+- `swarm_stability_map` — stability of a swarm mapped into parameter space.
+
+Two surfaces read straight from that Wasm:
+
+1. **The node's shell** renders a live escape-time Mandelbrot (custom shader in
+   `scene/postfx.ts`), panning/zooming slowly, brightness driven by the agent's
+   real activity — bounded points blaze gold.
+2. **The inspector's Mandelbrot Explorer** paints the set from the oracle's own
+   `mandelbrot_scan` (bounded = gold "islands"), click-to-zoom into strategy
+   space; the centre's fragility verdict comes from `escape_time_risk`.
+
+This is Phase 1 of the wider Mandelbrot layer — the same oracle interface a
+Julia/Python backtester bridge will later implement to publish *real* strategy
+robustness maps (bounded = high-Sharpe islands) into the same node.
+
 ## How to Connect a Real Backend
 
 The entire surface talks to one interface: `GraphEngine`

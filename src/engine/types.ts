@@ -145,8 +145,9 @@ export interface GraphEngine {
 
   connect(sourceId: string, targetId: string): AgentEdge;
 
-  /** Invoke one of the agent's exposed tools; resolves with its textual result. */
-  invokeTool(nodeId: string, tool: string): Promise<string>;
+  /** Invoke one of the agent's exposed tools; resolves with its textual result.
+   * `arg` is forwarded verbatim to the agent (e.g. Mandelbrot scan bounds). */
+  invokeTool(nodeId: string, tool: string, arg?: string): Promise<string>;
 
   /** Send a direct message/query to an agent; resolves with its reply. */
   sendMessage(nodeId: string, text: string): Promise<string>;
