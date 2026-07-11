@@ -1,4 +1,5 @@
 import type { GraphEngine, NodeTypeDefinition } from "../engine/types";
+import { GLYPH_MEMORY_NODE_TYPE } from "./glyphMemoryNode";
 
 /**
  * Default pluggable node types, one per illustrative framework tier. This is
@@ -74,4 +75,5 @@ export function registerDefaultNodeTypes(engine: GraphEngine): void {
   for (const def of DEFAULT_NODE_TYPES) {
     engine.registerNodeType(def);
   }
+  engine.registerNodeType(GLYPH_MEMORY_NODE_TYPE);
 }
