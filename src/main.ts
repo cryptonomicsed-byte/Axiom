@@ -1,5 +1,6 @@
 import "./style.css";
 import { MockGraphEngine } from "./engine/MockGraphEngine";
+import { WaggleFieldLink } from "./engine/WaggleFieldLink";
 import { WasmAgentHost } from "./runtime/WasmAgentHost";
 import { registerDefaultNodeTypes } from "./nodeTypes/registerDefaults";
 import { seedConstellation } from "./nodeTypes/seedConstellation";
@@ -28,6 +29,14 @@ engine.registerRuntime(new WasmAgentHost("/agents/axiom_leaf.wasm", ["rust-wasm-
 engine.registerRuntime(new WasmAgentHost("/agents/axiom_oracle.wasm", ["fractal-oracle"]));
 
 seedConstellation(engine);
+
+// Waggle field layer: hotspot/taboo/bounded nodes appear where the swarm's
+// scent actually is, sniff_explain feeds the inspector, cross-inhibition is
+// drawn as links, and the field's aggregate bounded stability drives the
+// Fractal Oracle's shell. Fails soft: no substrate, no field layer.
+const fieldLink = new WaggleFieldLink(engine, {
+  base: (import.meta as { env?: Record<string, string> }).env?.VITE_WAGGLE_URL ?? "http://127.0.0.1:7777",
+});
 
 const canvas = document.getElementById("axiom-canvas");
 const legendSlot = document.getElementById("axiom-legend-slot");
@@ -66,6 +75,7 @@ scene.setNodeClickHandler((node) => {
 
 engine.subscribe((nodes, edges) => {
   scene.update(nodes, edges);
+  scene.setFieldStability(fieldLink.fieldStability());
   hud.updateStats(nodes, edges);
   inspector.refresh(nodes);
 });
@@ -74,3 +84,11 @@ engine.onEvent((event) => {
   hud.pushEvent(event);
 });
 engine.start();
+
+// Gradient-driven camera: in follow mode the camera's attention follows the
+// field's — the hottest depth-2 rollup gets the scan pulse each cycle.
+void fieldLink.start().then((attached) => {
+  if (!attached) return;
+  scene.setNodeTypes(engine.getNodeTypes()); // include the waggle types
+  fieldLink.onHottest((nodeId) => scene.focusOn(nodeId));
+});
