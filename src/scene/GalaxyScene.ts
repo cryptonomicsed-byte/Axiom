@@ -171,6 +171,7 @@ export class GalaxyScene {
   private hoveredId: string | null = null;
   private swarmActivity = 0;
   private followMode = false;
+  private fieldStability = 0.5;
 
   private onNodeClick: NodeClickHandler = () => {};
 
@@ -238,6 +239,15 @@ export class GalaxyScene {
   /** Cinematic follow: camera target eases toward the most active agent. */
   setFollowMode(enabled: boolean): void {
     this.followMode = enabled;
+  }
+
+  /**
+   * Ecosystem-wide bounded stability (0..1) from the Waggle field; blended
+   * into the Fractal Oracle's shell so the fractal reflects the swarm's
+   * actual ground, not only the local sandboxed scan.
+   */
+  setFieldStability(value: number): void {
+    this.fieldStability = Math.max(0, Math.min(1, value));
   }
 
   /** Reconciles the scene against the latest graph snapshot. */
@@ -683,10 +693,12 @@ export class GalaxyScene {
       const flareSize = 7 + flareStrength * 10 + node.activity * 3;
       visual.flare.scale.set(flareSize, flareSize, 1);
 
-      // Fractal Oracle: drive the live Mandelbrot shell from real activity.
+      // Fractal Oracle: drive the live Mandelbrot shell from real activity,
+      // blended with the field-wide bounded stability reading.
       if (visual.fractalMaterial && visual.fractal) {
         visual.fractalMaterial.uniforms.uTime.value = elapsed;
         visual.fractalMaterial.uniforms.uActivity.value = 0.25 + node.activity * 0.75;
+        visual.fractalMaterial.uniforms.uFieldStability.value = this.fieldStability;
         visual.fractal.rotateOnAxis(visual.spinAxis, delta * 0.08);
       }
 

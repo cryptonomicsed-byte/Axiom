@@ -193,6 +193,10 @@ export function createFractalMaterial(colorA: number, colorB: number): THREE.Sha
     uniforms: {
       uTime: { value: 0 },
       uActivity: { value: 0.5 },
+      // Live ecosystem-wide bounded stability (0..1) from the Waggle field:
+      // the fractal stops being a demo of the oracle's own sandbox and
+      // reflects real field robustness. 0.5 = neutral (no field attached).
+      uFieldStability: { value: 0.5 },
       uColorA: { value: new THREE.Color(colorA) },
       uColorB: { value: new THREE.Color(colorB) },
     },
@@ -208,6 +212,7 @@ export function createFractalMaterial(colorA: number, colorB: number): THREE.Sha
       varying vec3 vPos;
       uniform float uTime;
       uniform float uActivity;
+      uniform float uFieldStability;
       uniform vec3 uColorA;
       uniform vec3 uColorB;
       void main() {
@@ -227,7 +232,14 @@ export function createFractalMaterial(colorA: number, colorB: number): THREE.Sha
         // Smooth escape-time band → accent gradient; in-set points blaze gold.
         vec3 col = mix(uColorA, uColorB, pow(t, 0.6));
         if (bounded) col = uColorB * 1.5;
-        float glow = (0.22 + 0.78 * uActivity) * (bounded ? 1.0 : 0.25 + 0.75 * t);
+        // Field blend: real bounded-channel stability re-weights the read.
+        // A robust ecosystem (s→1) makes the islands blaze; a fragile one
+        // (s→0) cools them toward the escape gradient and reddens the band —
+        // the shell now shows the swarm's actual ground, not just the demo.
+        float s = clamp(uFieldStability, 0.0, 1.0);
+        if (bounded) col *= 0.6 + 0.9 * s;
+        else col = mix(col, vec3(0.9, 0.25, 0.15) * (0.4 + 0.6 * t), (1.0 - s) * 0.45);
+        float glow = (0.22 + 0.78 * uActivity) * (bounded ? 0.55 + 0.45 * s : 0.25 + 0.75 * t);
         gl_FragColor = vec4(col * glow, glow);
       }
     `,
