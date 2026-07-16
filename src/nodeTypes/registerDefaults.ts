@@ -68,6 +68,16 @@ export const DEFAULT_NODE_TYPES: NodeTypeDefinition[] = [
     birthEffect: "burst",
   },
   {
+    id: "obatala-wisdom",
+    label: "Ọbàtálá (Wisdom)",
+    description: "Symbolic reasoning & ethics engine — consent logic, privacy gating, Hermetic evaluation.",
+    color: 0xf5f5f5,
+    accentColor: 0xffffff,
+    scale: 1.2,
+    geometry: "geodesic",
+    birthEffect: "burst",
+  },
+  {
     id: "move-onchain",
     label: "Move (Sui)",
     description: "Published on-chain package (omokoda-on-chain) — agent/soul/synapse/garden modules, queried live from Sui testnet.",

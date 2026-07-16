@@ -6,6 +6,7 @@ import { JuliaMemoryRuntimeHost } from "./runtime/JuliaMemoryRuntimeHost";
 import { ElixirSwarmRuntimeHost } from "./runtime/ElixirSwarmRuntimeHost";
 import { GoFlowRuntimeHost } from "./runtime/GoFlowRuntimeHost";
 import { MoveOnChainRuntimeHost } from "./runtime/MoveOnChainRuntimeHost";
+import { ObatalaRuntimeHost } from "./runtime/ObatalaRuntimeHost";
 import { registerOmokodaNodeType } from "./nodeTypes/registerOmokoda";
 import { DEFAULT_NODE_TYPES } from "./nodeTypes/registerDefaults";
 import { GalaxyScene } from "./scene/GalaxyScene";
@@ -97,6 +98,19 @@ function resolveSuiApiBase(): string {
   return "https://sui-testnet-rpc.publicnode.com";
 }
 
+// --- Resolve Ọbàtálá's API base (override via ?obatalaApi=)
+function resolveObatalaApiBase(): string {
+  const url = new URL(window.location.href);
+  const override = url.searchParams.get("obatalaApi");
+  if (override) {
+    localStorage.setItem("obatala_api_base", override);
+    return override;
+  }
+  const stored = localStorage.getItem("obatala_api_base");
+  if (stored) return stored;
+  return `http://${window.location.hostname}:4002`;
+}
+
 // --- Engine: the real omokoda-core kernel, not a simulation. See README
 // "How to Connect a Real Backend" for the interface this implements.
 const engine = new OmokodaGraphEngine({ apiBase: resolveApiBase() });
@@ -151,6 +165,13 @@ engine.registerRuntime(new GoFlowRuntimeHost(resolveGoApiBase()));
 const moveOnChainDef = DEFAULT_NODE_TYPES.find((d) => d.id === "move-onchain");
 if (moveOnChainDef) engine.registerNodeType(moveOnChainDef);
 engine.registerRuntime(new MoveOnChainRuntimeHost(resolveSuiApiBase()));
+
+// Ọbàtálá (Wisdom): the real Clojure/Babashka symbolic ethics engine
+// (:4002 on the VPS) -- consent/privacy rule evaluation, live. A shared
+// gate other requests may depend on, so spawning attaches.
+const obatalaDef = DEFAULT_NODE_TYPES.find((d) => d.id === "obatala-wisdom");
+if (obatalaDef) engine.registerNodeType(obatalaDef);
+engine.registerRuntime(new ObatalaRuntimeHost(resolveObatalaApiBase()));
 
 // No seedConstellation() here — every node on this galaxy is real: the
 // kernel (from /v1/status once she's born) or a genuinely sandboxed Wasm
