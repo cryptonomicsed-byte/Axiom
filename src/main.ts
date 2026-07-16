@@ -2,6 +2,7 @@ import "./style.css";
 import { OmokodaGraphEngine } from "./engine/OmokodaGraphEngine";
 import { WasmAgentHost } from "./runtime/WasmAgentHost";
 import { LoomRuntimeHost } from "./runtime/LoomRuntimeHost";
+import { JuliaMemoryRuntimeHost } from "./runtime/JuliaMemoryRuntimeHost";
 import { registerOmokodaNodeType } from "./nodeTypes/registerOmokoda";
 import { DEFAULT_NODE_TYPES } from "./nodeTypes/registerDefaults";
 import { GalaxyScene } from "./scene/GalaxyScene";
@@ -39,6 +40,19 @@ function resolveLoomApiBase(): string {
   return `http://${window.location.hostname}:8889`;
 }
 
+// --- Resolve the Julia memory service's API base (override via ?juliaApi=)
+function resolveJuliaApiBase(): string {
+  const url = new URL(window.location.href);
+  const override = url.searchParams.get("juliaApi");
+  if (override) {
+    localStorage.setItem("julia_api_base", override);
+    return override;
+  }
+  const stored = localStorage.getItem("julia_api_base");
+  if (stored) return stored;
+  return `http://${window.location.hostname}:7778`;
+}
+
 // --- Engine: the real omokoda-core kernel, not a simulation. See README
 // "How to Connect a Real Backend" for the interface this implements.
 const engine = new OmokodaGraphEngine({ apiBase: resolveApiBase() });
@@ -63,6 +77,15 @@ engine.registerRuntime(new WasmAgentHost("/agents/axiom_oracle.wasm", ["fractal-
 const pythonFabricDef = DEFAULT_NODE_TYPES.find((d) => d.id === "python-fabric");
 if (pythonFabricDef) engine.registerNodeType(pythonFabricDef);
 engine.registerRuntime(new LoomRuntimeHost(resolveLoomApiBase()));
+
+// Julia Compute: the real omokoda-memory service (:7778 on the VPS) — Busy
+// Beaver verification, NIST entropy tests, Augury prediction, DePIN
+// optimization, mesh scoring, and REM fractal planning. Also a live
+// singleton other services (the Rust kernel, Elixir swarm) already depend
+// on, so spawning attaches rather than boots.
+const juliaComputeDef = DEFAULT_NODE_TYPES.find((d) => d.id === "julia-compute");
+if (juliaComputeDef) engine.registerNodeType(juliaComputeDef);
+engine.registerRuntime(new JuliaMemoryRuntimeHost(resolveJuliaApiBase()));
 
 // No seedConstellation() here — every node on this galaxy is real: the
 // kernel (from /v1/status once she's born) or a genuinely sandboxed Wasm
