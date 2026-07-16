@@ -1,6 +1,7 @@
 import "./style.css";
 import { OmokodaGraphEngine } from "./engine/OmokodaGraphEngine";
 import { WasmAgentHost } from "./runtime/WasmAgentHost";
+import { LoomRuntimeHost } from "./runtime/LoomRuntimeHost";
 import { registerOmokodaNodeType } from "./nodeTypes/registerOmokoda";
 import { DEFAULT_NODE_TYPES } from "./nodeTypes/registerDefaults";
 import { GalaxyScene } from "./scene/GalaxyScene";
@@ -25,6 +26,19 @@ function resolveApiBase(): string {
   return `http://${window.location.hostname}:7777`;
 }
 
+// --- Resolve LOOM's API base (same-host convention, override via ?loomApi=)
+function resolveLoomApiBase(): string {
+  const url = new URL(window.location.href);
+  const override = url.searchParams.get("loomApi");
+  if (override) {
+    localStorage.setItem("loom_api_base", override);
+    return override;
+  }
+  const stored = localStorage.getItem("loom_api_base");
+  if (stored) return stored;
+  return `http://${window.location.hostname}:8889`;
+}
+
 // --- Engine: the real omokoda-core kernel, not a simulation. See README
 // "How to Connect a Real Backend" for the interface this implements.
 const engine = new OmokodaGraphEngine({ apiBase: resolveApiBase() });
@@ -42,6 +56,13 @@ for (const def of DEFAULT_NODE_TYPES) {
 }
 engine.registerRuntime(new WasmAgentHost("/agents/axiom_leaf.wasm", ["rust-wasm-leaf"]));
 engine.registerRuntime(new WasmAgentHost("/agents/axiom_oracle.wasm", ["fractal-oracle"]));
+
+// Python Fabric: LOOM (real production whale-tracking/market-intel engine,
+// /opt/ares/Loom on the VPS) — a live singleton service, not something this
+// dashboard boots. Spawning attaches an observer node to it.
+const pythonFabricDef = DEFAULT_NODE_TYPES.find((d) => d.id === "python-fabric");
+if (pythonFabricDef) engine.registerNodeType(pythonFabricDef);
+engine.registerRuntime(new LoomRuntimeHost(resolveLoomApiBase()));
 
 // No seedConstellation() here — every node on this galaxy is real: the
 // kernel (from /v1/status once she's born) or a genuinely sandboxed Wasm
