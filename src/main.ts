@@ -5,6 +5,7 @@ import { LoomRuntimeHost } from "./runtime/LoomRuntimeHost";
 import { JuliaMemoryRuntimeHost } from "./runtime/JuliaMemoryRuntimeHost";
 import { ElixirSwarmRuntimeHost } from "./runtime/ElixirSwarmRuntimeHost";
 import { GoFlowRuntimeHost } from "./runtime/GoFlowRuntimeHost";
+import { MoveOnChainRuntimeHost } from "./runtime/MoveOnChainRuntimeHost";
 import { registerOmokodaNodeType } from "./nodeTypes/registerOmokoda";
 import { DEFAULT_NODE_TYPES } from "./nodeTypes/registerDefaults";
 import { GalaxyScene } from "./scene/GalaxyScene";
@@ -81,6 +82,21 @@ function resolveGoApiBase(): string {
   return `http://${window.location.hostname}:8100`;
 }
 
+// --- Sui testnet RPC base (override via ?suiApi=). fullnode.testnet.sui.io
+// soft-blocks non-SDK POSTs; this public mirror serves the same chain with
+// open CORS, confirmed live.
+function resolveSuiApiBase(): string {
+  const url = new URL(window.location.href);
+  const override = url.searchParams.get("suiApi");
+  if (override) {
+    localStorage.setItem("sui_api_base", override);
+    return override;
+  }
+  const stored = localStorage.getItem("sui_api_base");
+  if (stored) return stored;
+  return "https://sui-testnet-rpc.publicnode.com";
+}
+
 // --- Engine: the real omokoda-core kernel, not a simulation. See README
 // "How to Connect a Real Backend" for the interface this implements.
 const engine = new OmokodaGraphEngine({ apiBase: resolveApiBase() });
@@ -129,6 +145,12 @@ engine.registerRuntime(new ElixirSwarmRuntimeHost(resolveElixirApiBase()));
 const goFlowDef = DEFAULT_NODE_TYPES.find((d) => d.id === "go-flow");
 if (goFlowDef) engine.registerNodeType(goFlowDef);
 engine.registerRuntime(new GoFlowRuntimeHost(resolveGoApiBase()));
+
+// Move (Sui): the real published omokoda-on-chain package — no backend of
+// its own, queries Sui's public RPC directly. Nothing to boot or kill.
+const moveOnChainDef = DEFAULT_NODE_TYPES.find((d) => d.id === "move-onchain");
+if (moveOnChainDef) engine.registerNodeType(moveOnChainDef);
+engine.registerRuntime(new MoveOnChainRuntimeHost(resolveSuiApiBase()));
 
 // No seedConstellation() here — every node on this galaxy is real: the
 // kernel (from /v1/status once she's born) or a genuinely sandboxed Wasm

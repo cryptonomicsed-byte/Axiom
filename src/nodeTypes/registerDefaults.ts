@@ -68,6 +68,16 @@ export const DEFAULT_NODE_TYPES: NodeTypeDefinition[] = [
     birthEffect: "burst",
   },
   {
+    id: "move-onchain",
+    label: "Move (Sui)",
+    description: "Published on-chain package (omokoda-on-chain) — agent/soul/synapse/garden modules, queried live from Sui testnet.",
+    color: 0x4da6ff,
+    accentColor: 0xa8d4ff,
+    scale: 1.3,
+    geometry: "crystal",
+    birthEffect: "burst",
+  },
+  {
     id: "fractal-oracle",
     label: "Fractal Oracle",
     description:
