@@ -48,6 +48,16 @@ export const DEFAULT_NODE_TYPES: NodeTypeDefinition[] = [
     birthEffect: "burst",
   },
   {
+    id: "go-flow",
+    label: "Go Flow",
+    description: "ỌYA: rhythm/rate-limit enforcement — Sabbath gating and per-agent primitive cooldowns.",
+    color: 0x00b8d9,
+    accentColor: 0x7ce8ff,
+    scale: 0.85,
+    geometry: "prism",
+    birthEffect: "burst",
+  },
+  {
     id: "julia-compute",
     label: "Julia Compute",
     description: "Heavy numerical / graph-compute workers, invoked for expensive analytical passes.",

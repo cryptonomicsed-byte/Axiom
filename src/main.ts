@@ -4,6 +4,7 @@ import { WasmAgentHost } from "./runtime/WasmAgentHost";
 import { LoomRuntimeHost } from "./runtime/LoomRuntimeHost";
 import { JuliaMemoryRuntimeHost } from "./runtime/JuliaMemoryRuntimeHost";
 import { ElixirSwarmRuntimeHost } from "./runtime/ElixirSwarmRuntimeHost";
+import { GoFlowRuntimeHost } from "./runtime/GoFlowRuntimeHost";
 import { registerOmokodaNodeType } from "./nodeTypes/registerOmokoda";
 import { DEFAULT_NODE_TYPES } from "./nodeTypes/registerDefaults";
 import { GalaxyScene } from "./scene/GalaxyScene";
@@ -67,6 +68,19 @@ function resolveElixirApiBase(): string {
   return `http://${window.location.hostname}:4000`;
 }
 
+// --- Resolve ỌYA's (Go flow service) API base (override via ?goApi=)
+function resolveGoApiBase(): string {
+  const url = new URL(window.location.href);
+  const override = url.searchParams.get("goApi");
+  if (override) {
+    localStorage.setItem("go_api_base", override);
+    return override;
+  }
+  const stored = localStorage.getItem("go_api_base");
+  if (stored) return stored;
+  return `http://${window.location.hostname}:8100`;
+}
+
 // --- Engine: the real omokoda-core kernel, not a simulation. See README
 // "How to Connect a Real Backend" for the interface this implements.
 const engine = new OmokodaGraphEngine({ apiBase: resolveApiBase() });
@@ -108,6 +122,13 @@ engine.registerRuntime(new JuliaMemoryRuntimeHost(resolveJuliaApiBase()));
 const elixirCoreDef = DEFAULT_NODE_TYPES.find((d) => d.id === "elixir-core");
 if (elixirCoreDef) engine.registerNodeType(elixirCoreDef);
 engine.registerRuntime(new ElixirSwarmRuntimeHost(resolveElixirApiBase()));
+
+// Go Flow: the real ỌYA rhythm/rate-limit service (:8100 on the VPS) —
+// Sabbath gating and per-agent primitive cooldowns. A live shared service
+// (other agents' think/act calls depend on it), so spawning attaches.
+const goFlowDef = DEFAULT_NODE_TYPES.find((d) => d.id === "go-flow");
+if (goFlowDef) engine.registerNodeType(goFlowDef);
+engine.registerRuntime(new GoFlowRuntimeHost(resolveGoApiBase()));
 
 // No seedConstellation() here — every node on this galaxy is real: the
 // kernel (from /v1/status once she's born) or a genuinely sandboxed Wasm
