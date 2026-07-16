@@ -1,33 +1,51 @@
 import "./style.css";
-import { MockGraphEngine } from "./engine/MockGraphEngine";
+import { OmokodaGraphEngine } from "./engine/OmokodaGraphEngine";
 import { WasmAgentHost } from "./runtime/WasmAgentHost";
-import { registerDefaultNodeTypes } from "./nodeTypes/registerDefaults";
-import { seedConstellation } from "./nodeTypes/seedConstellation";
+import { registerOmokodaNodeType } from "./nodeTypes/registerOmokoda";
+import { DEFAULT_NODE_TYPES } from "./nodeTypes/registerDefaults";
 import { GalaxyScene } from "./scene/GalaxyScene";
 import { NodeInspector } from "./ui/NodeInspector";
 import { SpawnPanel } from "./ui/SpawnPanel";
 import { Legend } from "./ui/Legend";
 import { Hud } from "./ui/Hud";
 
-// --- Engine: swap MockGraphEngine for a real backend-backed GraphEngine
-// implementation (e.g. one that speaks to an Elixir GraphEngine over
-// WebSocket) to go from demo to production. Nothing below this line needs
-// to change when that swap happens. See README "How to Connect a Real
-// Backend".
-const engine = new MockGraphEngine();
-registerDefaultNodeTypes(engine);
+// --- Resolve the omokoda-core API base -------------------------------------
+// Default: same hostname the dashboard is served from, on the kernel's HTTP
+// port (7777). Override with ?api=http://host:port (persisted for next load)
+// for local dev against a different box.
+function resolveApiBase(): string {
+  const url = new URL(window.location.href);
+  const override = url.searchParams.get("api");
+  if (override) {
+    localStorage.setItem("omokoda_api_base", override);
+    return override;
+  }
+  const stored = localStorage.getItem("omokoda_api_base");
+  if (stored) return stored;
+  return `http://${window.location.hostname}:7777`;
+}
 
-// Real runtime: every rust-wasm-leaf node is a live sandboxed WebAssembly
-// process (compiled from agents/leaf). Its tools and message replies execute
-// inside the instance — only the remaining node types are simulated.
+// --- Engine: the real omokoda-core kernel, not a simulation. See README
+// "How to Connect a Real Backend" for the interface this implements.
+const engine = new OmokodaGraphEngine({ apiBase: resolveApiBase() });
+
+// The sovereign kernel — the real, always-on agent this dashboard controls.
+registerOmokodaNodeType(engine);
+
+// The two real Wasm species remain genuinely spawnable utility agents (not
+// simulated — see README "Real execution: the Wasm leaf runtime" and "The
+// Fractal Oracle"). The fractal oracle in particular computes real Mandelbrot
+// escape-time dynamics inside the sandbox.
+const REAL_WASM_TYPE_IDS = new Set(["rust-wasm-leaf", "fractal-oracle"]);
+for (const def of DEFAULT_NODE_TYPES) {
+  if (REAL_WASM_TYPE_IDS.has(def.id)) engine.registerNodeType(def);
+}
 engine.registerRuntime(new WasmAgentHost("/agents/axiom_leaf.wasm", ["rust-wasm-leaf"]));
-
-// Fractal Oracle: a real Wasm Mandelbrot engine. Its tools (mandelbrot_scan,
-// escape_time_risk, robust_island_query, …) execute inside the sandbox; the
-// inspector's explorer and the node's shader read straight from it.
 engine.registerRuntime(new WasmAgentHost("/agents/axiom_oracle.wasm", ["fractal-oracle"]));
 
-seedConstellation(engine);
+// No seedConstellation() here — every node on this galaxy is real: the
+// kernel (from /v1/status once she's born) or a genuinely sandboxed Wasm
+// process a user spawns via the panel below.
 
 const canvas = document.getElementById("axiom-canvas");
 const legendSlot = document.getElementById("axiom-legend-slot");
@@ -50,7 +68,7 @@ const inspector = new NodeInspector(inspectorSlot, engine, (parent) => {
     framework: def?.label ?? parent.framework,
     capabilities: [{ name: "assist", description: `Delegated subtask from ${parent.label}` }],
   });
-  engine.connect(parent.id, child.id);
+  if (child.id !== parent.id) engine.connect(parent.id, child.id);
 });
 new SpawnPanel(spawnSlot, engine);
 new Legend(legendSlot, engine.getNodeTypes());
