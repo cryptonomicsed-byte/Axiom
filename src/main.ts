@@ -3,6 +3,7 @@ import { OmokodaGraphEngine } from "./engine/OmokodaGraphEngine";
 import { WasmAgentHost } from "./runtime/WasmAgentHost";
 import { LoomRuntimeHost } from "./runtime/LoomRuntimeHost";
 import { JuliaMemoryRuntimeHost } from "./runtime/JuliaMemoryRuntimeHost";
+import { ElixirSwarmRuntimeHost } from "./runtime/ElixirSwarmRuntimeHost";
 import { registerOmokodaNodeType } from "./nodeTypes/registerOmokoda";
 import { DEFAULT_NODE_TYPES } from "./nodeTypes/registerDefaults";
 import { GalaxyScene } from "./scene/GalaxyScene";
@@ -53,6 +54,19 @@ function resolveJuliaApiBase(): string {
   return `http://${window.location.hostname}:7778`;
 }
 
+// --- Resolve the Elixir swarm's API base (override via ?elixirApi=)
+function resolveElixirApiBase(): string {
+  const url = new URL(window.location.href);
+  const override = url.searchParams.get("elixirApi");
+  if (override) {
+    localStorage.setItem("elixir_api_base", override);
+    return override;
+  }
+  const stored = localStorage.getItem("elixir_api_base");
+  if (stored) return stored;
+  return `http://${window.location.hostname}:4000`;
+}
+
 // --- Engine: the real omokoda-core kernel, not a simulation. See README
 // "How to Connect a Real Backend" for the interface this implements.
 const engine = new OmokodaGraphEngine({ apiBase: resolveApiBase() });
@@ -86,6 +100,14 @@ engine.registerRuntime(new LoomRuntimeHost(resolveLoomApiBase()));
 const juliaComputeDef = DEFAULT_NODE_TYPES.find((d) => d.id === "julia-compute");
 if (juliaComputeDef) engine.registerNodeType(juliaComputeDef);
 engine.registerRuntime(new JuliaMemoryRuntimeHost(resolveJuliaApiBase()));
+
+// Elixir Core: the real omokoda-swarm OTP supervision tree (:4000 on the
+// VPS) — coordinator, hive, mesh presence/neighbor discovery, and the
+// hive-scale REM cycle GenServer. A live supervisor other agents run
+// under, so spawning attaches rather than boots.
+const elixirCoreDef = DEFAULT_NODE_TYPES.find((d) => d.id === "elixir-core");
+if (elixirCoreDef) engine.registerNodeType(elixirCoreDef);
+engine.registerRuntime(new ElixirSwarmRuntimeHost(resolveElixirApiBase()));
 
 // No seedConstellation() here — every node on this galaxy is real: the
 // kernel (from /v1/status once she's born) or a genuinely sandboxed Wasm
