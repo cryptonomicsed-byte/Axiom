@@ -8,6 +8,7 @@ import { GoFlowRuntimeHost } from "./runtime/GoFlowRuntimeHost";
 import { MoveOnChainRuntimeHost } from "./runtime/MoveOnChainRuntimeHost";
 import { ObatalaRuntimeHost } from "./runtime/ObatalaRuntimeHost";
 import { registerOmokodaNodeType } from "./nodeTypes/registerOmokoda";
+import { registerGlyphMemoryNodeType } from "./nodeTypes/glyphMemoryNode";
 import { DEFAULT_NODE_TYPES } from "./nodeTypes/registerDefaults";
 import { GalaxyScene } from "./scene/GalaxyScene";
 import { NodeInspector } from "./ui/NodeInspector";
@@ -117,6 +118,11 @@ const engine = new OmokodaGraphEngine({ apiBase: resolveApiBase() });
 
 // The sovereign kernel — the real, always-on agent this dashboard controls.
 registerOmokodaNodeType(engine);
+
+// GlyphIndex sovereign-memory stars — the queryable projection of the
+// ecosystem memory vault (spec: OSOVM/GLYPHINDEX_SPEC.md), rendered with
+// base-Odù semantic zoom via projectGlyphGalaxy / semanticZoomClusters.
+registerGlyphMemoryNodeType(engine);
 
 // The two real Wasm species remain genuinely spawnable utility agents (not
 // simulated — see README "Real execution: the Wasm leaf runtime" and "The
