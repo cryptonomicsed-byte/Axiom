@@ -214,6 +214,40 @@ pointing at its `.wasm` URL for its node type ids. The hybrid engine
 multiplexes: Wasm leaves locally, an Elixir core over WebSocket, one
 unified graph on the surface.
 
+### Vantage block mesh (whole Ọmọ Kọ́dà population) — ALREADY SHIPPED (opt-in)
+
+The default engine (`OmokodaGraphEngine`) drives the galaxy from a single live
+kernel over `/v1/*`. `src/engine/VantageGraphEngine.ts` is a second, opt-in live
+engine that instead mirrors the **whole population** as the
+[Vantage](https://github.com/cryptonomicsed-byte/Vantage) social hub sees it:
+every ọmọ Kọ́dà agent self-registers on the block mesh at birth
+(`POST /api/mesh/agents/join`, carrying a verifiable Ed25519 identity, DNA
+fingerprint, and Ifá Odù — see Ọmọ Kọ́dà's `mesh_tools.rs`), and this engine
+reads that roster back as the graph:
+
+- **Nodes** ← `GET /api/mesh/blocks/{block}/agents`. Trust → reputation,
+  `last_seen_at` recency → activity, Odù / Òrìṣà / verification / DNA → capabilities.
+- **Edges** ← birth lineage: `parent_id → child` when both are on the roster.
+- **Events** ← `GET /api/mesh/blocks/{block}/events`: new agents → `node_spawned`,
+  `proposal_created` → `message_pulse`, departures → `node_died`.
+- **Real-time** ← it opens `/ws/gossip?channel=block.{block}` purely as a
+  "poll now" nudge so a birth shows within milliseconds; polling is the safety net.
+
+It is **read-only** (births happen in the runtime, not the browser), so
+spawn/terminate/connect are disabled and the inspector shows *live mesh ·
+read-only*. Enable it with Vite env (see `.env.example`); unset ⇒ the default
+kernel engine is used, unchanged:
+
+```bash
+VITE_VANTAGE_URL=https://your-vantage-host   # unset ⇒ default kernel engine
+VITE_VANTAGE_KEY=vantage_xxx                 # a read-only viewer agent key
+VITE_MESH_BLOCK=default                       # block to mirror (optional)
+```
+
+> The browser calls Vantage directly, so the host must allow the AXIOM origin in
+> `ALLOWED_ORIGINS` (CORS) and permit the `X-Agent-Key` header — or point
+> `VITE_VANTAGE_URL` at a Vite dev proxy.
+
 ## What's out of scope here
 
 This artifact is the visualization/control-plane surface only. It does not

@@ -14,7 +14,8 @@ export class NodeInspector {
   constructor(
     container: HTMLElement,
     private engine: GraphEngine,
-    private onSpawnChild: (parent: AgentNode) => void
+    /** Undefined ⇒ read-only mode (live mesh): mutating actions are hidden. */
+    private onSpawnChild?: (parent: AgentNode) => void
   ) {
     this.root = document.createElement("div");
     this.root.className = "axiom-inspector axiom-inspector--empty";
@@ -76,10 +77,14 @@ export class NodeInspector {
         <button class="axiom-btn axiom-btn--small" data-field="msgsend">Send</button>
       </div>
       <div class="axiom-inspector__reply" data-field="reply"></div>
-      <div class="axiom-inspector__actions">
+      ${
+        this.onSpawnChild
+          ? `<div class="axiom-inspector__actions">
         <button class="axiom-btn axiom-btn--small" data-field="spawnchild">Spawn child</button>
         <button class="axiom-btn axiom-btn--danger axiom-btn--small" data-field="terminate">Terminate</button>
-      </div>
+      </div>`
+          : `<div class="axiom-inspector__readonly">live mesh · read-only</div>`
+      }
     `;
 
     this.renderMemory(node);
@@ -234,7 +239,7 @@ export class NodeInspector {
 
     this.root
       .querySelector('[data-field="spawnchild"]')
-      ?.addEventListener("click", () => this.onSpawnChild(node));
+      ?.addEventListener("click", () => this.onSpawnChild?.(node));
 
     this.root.querySelector('[data-field="terminate"]')?.addEventListener("click", () => {
       this.engine.terminateNode(node.id);

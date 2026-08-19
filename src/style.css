@@ -455,6 +455,20 @@ body {
   margin-top: 0.9rem;
 }
 
+/* Live mesh is read-only: shown in place of the spawn/terminate actions. */
+.axiom-inspector__readonly {
+  margin-top: 0.9rem;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--axiom-glass-border);
+  border-radius: 0.4rem;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--axiom-text-dim, #9aa);
+  opacity: 0.75;
+  text-align: center;
+}
+
 /* --- Mandelbrot explorer (Fractal Oracle) ------------------------------- */
 
 .axiom-fractal {

@@ -1,5 +1,7 @@
 import "./style.css";
+import type { GraphEngine } from "./engine/types";
 import { OmokodaGraphEngine } from "./engine/OmokodaGraphEngine";
+import { VantageGraphEngine } from "./engine/VantageGraphEngine";
 import { WasmAgentHost } from "./runtime/WasmAgentHost";
 import { LoomRuntimeHost } from "./runtime/LoomRuntimeHost";
 import { JuliaMemoryRuntimeHost } from "./runtime/JuliaMemoryRuntimeHost";
@@ -114,7 +116,28 @@ function resolveObatalaApiBase(): string {
 
 // --- Engine: the real omokoda-core kernel, not a simulation. See README
 // "How to Connect a Real Backend" for the interface this implements.
-const engine = new OmokodaGraphEngine({ apiBase: resolveApiBase() });
+//
+// Opt-in LIVE-MESH view: set VITE_VANTAGE_URL to mirror the whole Ọmọ Kọ́dà
+// population as the Vantage social hub sees it — every agent that self-
+// registered at birth becomes its own node, birth lineage (parent_id) becomes
+// edges, and it's read-only (births happen in the runtime, not the browser).
+// Unset ⇒ the default kernel-direct OmokodaGraphEngine below is used unchanged.
+const VANTAGE_URL = import.meta.env.VITE_VANTAGE_URL as string | undefined;
+const meshView = Boolean(VANTAGE_URL && VANTAGE_URL.trim());
+const engine: GraphEngine = meshView
+  ? new VantageGraphEngine({
+      baseUrl: VANTAGE_URL!,
+      apiKey: (import.meta.env.VITE_VANTAGE_KEY as string | undefined) ?? "",
+      blockId: (import.meta.env.VITE_MESH_BLOCK as string | undefined) ?? "default",
+    })
+  : new OmokodaGraphEngine({ apiBase: resolveApiBase() });
+if (meshView) {
+  console.info(
+    `[AXIOM] LIVE mesh view — mirroring Vantage block "${
+      (import.meta.env.VITE_MESH_BLOCK as string | undefined) ?? "default"
+    }" at ${VANTAGE_URL}`,
+  );
+}
 
 // The sovereign kernel — the real, always-on agent this dashboard controls.
 registerOmokodaNodeType(engine);
@@ -196,17 +219,23 @@ const scene = new GalaxyScene(canvas);
 scene.setNodeTypes(engine.getNodeTypes());
 
 const hud = new Hud(canvas, (enabled) => scene.setFollowMode(enabled));
-const inspector = new NodeInspector(inspectorSlot, engine, (parent) => {
-  const def = engine.getNodeTypes().find((d) => d.id === parent.typeId);
-  const child = engine.spawnNode({
-    typeId: parent.typeId,
-    label: `${parent.label}-child`,
-    framework: def?.label ?? parent.framework,
-    capabilities: [{ name: "assist", description: `Delegated subtask from ${parent.label}` }],
-  });
-  if (child.id !== parent.id) engine.connect(parent.id, child.id);
-});
-new SpawnPanel(spawnSlot, engine);
+
+// In LIVE mesh view the population is authoritative and read-only — agents are
+// born in the Ọmọ Kọ́dà runtime, so the "spawn child" affordance is disabled.
+const spawnChild = meshView
+  ? undefined
+  : (parent: import("./engine/types").AgentNode) => {
+      const def = engine.getNodeTypes().find((d) => d.id === parent.typeId);
+      const child = engine.spawnNode({
+        typeId: parent.typeId,
+        label: `${parent.label}-child`,
+        framework: def?.label ?? parent.framework,
+        capabilities: [{ name: "assist", description: `Delegated subtask from ${parent.label}` }],
+      });
+      if (child.id !== parent.id) engine.connect(parent.id, child.id);
+    };
+const inspector = new NodeInspector(inspectorSlot, engine, spawnChild);
+if (!meshView) new SpawnPanel(spawnSlot, engine);
 new Legend(legendSlot, engine.getNodeTypes());
 
 scene.setNodeClickHandler((node) => {
