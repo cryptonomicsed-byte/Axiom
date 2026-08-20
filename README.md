@@ -14,7 +14,19 @@ npm install
 npm run dev      # local dev server, opens galaxy.html
 npm run build    # type-checks and produces a production build in dist/
 npm run typecheck
+npm run check:connectivity   # probe every backend AXIOM depends on (see below)
 ```
+
+### Is the whole ecosystem connected?
+
+`scripts/check-connectivity.mjs` (`npm run check:connectivity`) probes every
+service the galaxy talks to — the ọmọ Kọ́dà kernel, the Vantage hub + block
+mesh, and the Loom / Julia / Elixir / Go / Ọbàtálá backends — and prints a
+`LIVE / AUTH / DOWN / SKIP` matrix with the exact env var to override each base.
+Zero dependencies, read-only (GETs only), and it exits non-zero if any link is
+unreachable, so it doubles as a deploy smoke-test. Point it at real hosts with
+`OMOKODA_API`, `VANTAGE_URL` (+ `VANTAGE_KEY`), `LOOM_API`, `JULIA_API`,
+`ELIXIR_API`, `GO_API`, `OBATALA_API`.
 
 ## Architecture
 
