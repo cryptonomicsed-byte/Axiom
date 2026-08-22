@@ -56,7 +56,7 @@ export class ObatalaRuntimeHost implements AgentRuntimeProvider {
         if (!alive) throw new Error("instance terminated");
         const endpoint = endpointFor(tool);
         if (!endpoint) {
-          throw new Error(`Ọbàtálá has no "${tool}" tool — known: ${OBATALA_TOOLS.map((t) => t.tool).join(", ")}`);
+          throw new Error(`Policy has no "${tool}" tool — known: ${OBATALA_TOOLS.map((t) => t.tool).join(", ")}`);
         }
         const res = await fetch(`${apiBase}${endpoint.path}`, {
           method: endpoint.method,
@@ -64,7 +64,7 @@ export class ObatalaRuntimeHost implements AgentRuntimeProvider {
           body: endpoint.method === "POST" ? (arg && arg.length > 0 ? arg : "{}") : undefined,
         });
         const text = await res.text();
-        if (!res.ok) throw new Error(`Ọbàtálá ${endpoint.path} → ${res.status}: ${text}`);
+        if (!res.ok) throw new Error(`Policy ${endpoint.path} → ${res.status}: ${text}`);
         return text;
       },
       async sendMessage(text: string): Promise<string> {

@@ -22,9 +22,9 @@ export const GLYPH_MEMORY_NODE_TYPE: NodeTypeDefinition = {
   id: GLYPH_MEMORY_NODE_TYPE_ID,
   label: "GlyphIndex Memory",
   description:
-    "A sealed, content-addressed sovereign memory (GIX-FOLD-v1 glyph + Odù lineage). " +
+    "A sealed, content-addressed sovereign memory (GIX-FOLD-v1 glyph + Signature lineage). " +
     "Only metadata is shown; the chunk plaintext stays sealed in the identity layer. " +
-    "Zoom out to collapse memories into their base-Odù clusters, zoom in to see each glyph.",
+    "Zoom out to collapse memories into their base-Signature clusters, zoom in to see each glyph.",
   color: 0x8a6cff,
   accentColor: 0xc9b8ff,
   scale: 0.6,

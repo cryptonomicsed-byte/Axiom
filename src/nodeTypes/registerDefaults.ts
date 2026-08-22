@@ -50,7 +50,7 @@ export const DEFAULT_NODE_TYPES: NodeTypeDefinition[] = [
   {
     id: "go-flow",
     label: "Go Flow",
-    description: "ỌYA: rhythm/rate-limit enforcement — Sabbath gating and per-agent primitive cooldowns.",
+    description: "Sync: rhythm/rate-limit enforcement — Sabbath gating and per-agent primitive cooldowns.",
     color: 0x00b8d9,
     accentColor: 0x7ce8ff,
     scale: 0.85,
@@ -69,7 +69,7 @@ export const DEFAULT_NODE_TYPES: NodeTypeDefinition[] = [
   },
   {
     id: "obatala-wisdom",
-    label: "Ọbàtálá (Wisdom)",
+    label: "Policy (Wisdom)",
     description: "Symbolic reasoning & ethics engine — consent logic, privacy gating, Hermetic evaluation.",
     color: 0xf5f5f5,
     accentColor: 0xffffff,
