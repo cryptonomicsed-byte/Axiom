@@ -1,47 +1,187 @@
 import "./style.css";
-import { MockGraphEngine } from "./engine/MockGraphEngine";
+import { OmokodaGraphEngine } from "./engine/OmokodaGraphEngine";
 import { WasmAgentHost } from "./runtime/WasmAgentHost";
-import { LoomProvider } from "./runtime/LoomProvider";
-import { VantageProvider } from "./runtime/VantageProvider";
-import { registerDefaultNodeTypes } from "./nodeTypes/registerDefaults";
-import { seedConstellation } from "./nodeTypes/seedConstellation";
+import { LoomRuntimeHost } from "./runtime/LoomRuntimeHost";
+import { JuliaMemoryRuntimeHost } from "./runtime/JuliaMemoryRuntimeHost";
+import { ElixirSwarmRuntimeHost } from "./runtime/ElixirSwarmRuntimeHost";
+import { GoFlowRuntimeHost } from "./runtime/GoFlowRuntimeHost";
+import { MoveOnChainRuntimeHost } from "./runtime/MoveOnChainRuntimeHost";
+import { ObatalaRuntimeHost } from "./runtime/ObatalaRuntimeHost";
+import { registerOmokodaNodeType } from "./nodeTypes/registerOmokoda";
+import { registerGlyphMemoryNodeType } from "./nodeTypes/glyphMemoryNode";
+import { DEFAULT_NODE_TYPES } from "./nodeTypes/registerDefaults";
 import { GalaxyScene } from "./scene/GalaxyScene";
 import { NodeInspector } from "./ui/NodeInspector";
 import { SpawnPanel } from "./ui/SpawnPanel";
 import { Legend } from "./ui/Legend";
 import { Hud } from "./ui/Hud";
 
-// --- Engine: three providers power the galaxy simultaneously.
-// Each claims different node type IDs; the engine routes lifecycle and
-// tool invocations to the owning provider. Simulated types (from the
-// demo constellation) keep the galaxy alive as real backends come online.
-const engine = new MockGraphEngine();
-registerDefaultNodeTypes(engine);
+// --- Resolve the omokoda-core API base -------------------------------------
+// Default: same hostname the dashboard is served from, on the kernel's HTTP
+// port (7777). Override with ?api=http://host:port (persisted for next load)
+// for local dev against a different box.
+function resolveApiBase(): string {
+  const url = new URL(window.location.href);
+  const override = url.searchParams.get("api");
+  if (override) {
+    localStorage.setItem("omokoda_api_base", override);
+    return override;
+  }
+  const stored = localStorage.getItem("omokoda_api_base");
+  if (stored) return stored;
+  return `http://${window.location.hostname}:7777`;
+}
 
-// Provider 1: Local Wasm — sandboxed browser agents (rust-wasm-leaf)
+// --- Resolve LOOM's API base (same-host convention, override via ?loomApi=)
+function resolveLoomApiBase(): string {
+  const url = new URL(window.location.href);
+  const override = url.searchParams.get("loomApi");
+  if (override) {
+    localStorage.setItem("loom_api_base", override);
+    return override;
+  }
+  const stored = localStorage.getItem("loom_api_base");
+  if (stored) return stored;
+  return `http://${window.location.hostname}:8889`;
+}
+
+// --- Resolve the Julia memory service's API base (override via ?juliaApi=)
+function resolveJuliaApiBase(): string {
+  const url = new URL(window.location.href);
+  const override = url.searchParams.get("juliaApi");
+  if (override) {
+    localStorage.setItem("julia_api_base", override);
+    return override;
+  }
+  const stored = localStorage.getItem("julia_api_base");
+  if (stored) return stored;
+  return `http://${window.location.hostname}:7778`;
+}
+
+// --- Resolve the Elixir swarm's API base (override via ?elixirApi=)
+function resolveElixirApiBase(): string {
+  const url = new URL(window.location.href);
+  const override = url.searchParams.get("elixirApi");
+  if (override) {
+    localStorage.setItem("elixir_api_base", override);
+    return override;
+  }
+  const stored = localStorage.getItem("elixir_api_base");
+  if (stored) return stored;
+  return `http://${window.location.hostname}:4000`;
+}
+
+// --- Resolve ỌYA's (Go flow service) API base (override via ?goApi=)
+function resolveGoApiBase(): string {
+  const url = new URL(window.location.href);
+  const override = url.searchParams.get("goApi");
+  if (override) {
+    localStorage.setItem("go_api_base", override);
+    return override;
+  }
+  const stored = localStorage.getItem("go_api_base");
+  if (stored) return stored;
+  return `http://${window.location.hostname}:8100`;
+}
+
+// --- Sui testnet RPC base (override via ?suiApi=). fullnode.testnet.sui.io
+// soft-blocks non-SDK POSTs; this public mirror serves the same chain with
+// open CORS, confirmed live.
+function resolveSuiApiBase(): string {
+  const url = new URL(window.location.href);
+  const override = url.searchParams.get("suiApi");
+  if (override) {
+    localStorage.setItem("sui_api_base", override);
+    return override;
+  }
+  const stored = localStorage.getItem("sui_api_base");
+  if (stored) return stored;
+  return "https://sui-testnet-rpc.publicnode.com";
+}
+
+// --- Resolve Ọbàtálá's API base (override via ?obatalaApi=)
+function resolveObatalaApiBase(): string {
+  const url = new URL(window.location.href);
+  const override = url.searchParams.get("obatalaApi");
+  if (override) {
+    localStorage.setItem("obatala_api_base", override);
+    return override;
+  }
+  const stored = localStorage.getItem("obatala_api_base");
+  if (stored) return stored;
+  return `http://${window.location.hostname}:4002`;
+}
+
+// --- Engine: the real omokoda-core kernel, not a simulation. See README
+// "How to Connect a Real Backend" for the interface this implements.
+const engine = new OmokodaGraphEngine({ apiBase: resolveApiBase() });
+
+// The sovereign kernel — the real, always-on agent this dashboard controls.
+registerOmokodaNodeType(engine);
+
+// GlyphIndex sovereign-memory stars — the queryable projection of the
+// ecosystem memory vault (spec: OSOVM/GLYPHINDEX_SPEC.md), rendered with
+// base-Odù semantic zoom via projectGlyphGalaxy / semanticZoomClusters.
+registerGlyphMemoryNodeType(engine);
+
+// The two real Wasm species remain genuinely spawnable utility agents (not
+// simulated — see README "Real execution: the Wasm leaf runtime" and "The
+// Fractal Oracle"). The fractal oracle in particular computes real Mandelbrot
+// escape-time dynamics inside the sandbox.
+const REAL_WASM_TYPE_IDS = new Set(["rust-wasm-leaf", "fractal-oracle"]);
+for (const def of DEFAULT_NODE_TYPES) {
+  if (REAL_WASM_TYPE_IDS.has(def.id)) engine.registerNodeType(def);
+}
 engine.registerRuntime(new WasmAgentHost("/agents/axiom_leaf.wasm", ["rust-wasm-leaf"]));
-
-// Fractal Oracle: a real Wasm Mandelbrot engine. Its tools (mandelbrot_scan,
-// escape_time_risk, robust_island_query, …) execute inside the sandbox; the
-// inspector's explorer and the node's shader read straight from it.
 engine.registerRuntime(new WasmAgentHost("/agents/axiom_oracle.wasm", ["fractal-oracle"]));
 
-// Provider 2: LOOM fabric — local event bus, whale tracking, agent debates
-// (ws://localhost:8889/ws). Claims python-fabric + elixir-core types.
-const loom = new LoomProvider();
+// Python Fabric: LOOM (real production whale-tracking/market-intel engine,
+// /opt/ares/Loom on the VPS) — a live singleton service, not something this
+// dashboard boots. Spawning attaches an observer node to it.
+const pythonFabricDef = DEFAULT_NODE_TYPES.find((d) => d.id === "python-fabric");
+if (pythonFabricDef) engine.registerNodeType(pythonFabricDef);
+engine.registerRuntime(new LoomRuntimeHost(resolveLoomApiBase()));
 
-// Provider 3: Vantage — live ecosystem API at omokoda.duckdns.org
-// (requires X-Agent-Key for authenticated endpoints). Claims
-// typescript-surface + rust-wasm-leaf for ecosystem mirroring.
-const vantage = new VantageProvider();
+// Julia Compute: the real omokoda-memory service (:7778 on the VPS) — Busy
+// Beaver verification, NIST entropy tests, Augury prediction, DePIN
+// optimization, mesh scoring, and REM fractal planning. Also a live
+// singleton other services (the Rust kernel, Elixir swarm) already depend
+// on, so spawning attaches rather than boots.
+const juliaComputeDef = DEFAULT_NODE_TYPES.find((d) => d.id === "julia-compute");
+if (juliaComputeDef) engine.registerNodeType(juliaComputeDef);
+engine.registerRuntime(new JuliaMemoryRuntimeHost(resolveJuliaApiBase()));
 
-// Register both alongside the Wasm runtime
-engine.registerRuntime(loom);
-engine.registerRuntime(vantage);
+// Elixir Core: the real omokoda-swarm OTP supervision tree (:4000 on the
+// VPS) — coordinator, hive, mesh presence/neighbor discovery, and the
+// hive-scale REM cycle GenServer. A live supervisor other agents run
+// under, so spawning attaches rather than boots.
+const elixirCoreDef = DEFAULT_NODE_TYPES.find((d) => d.id === "elixir-core");
+if (elixirCoreDef) engine.registerNodeType(elixirCoreDef);
+engine.registerRuntime(new ElixirSwarmRuntimeHost(resolveElixirApiBase()));
 
-// Seed demo constellation — simulated nodes fill in gaps where no
-// provider has claimed a type yet, keeping the galaxy alive on first load.
-seedConstellation(engine);
+// Go Flow: the real ỌYA rhythm/rate-limit service (:8100 on the VPS) —
+// Sabbath gating and per-agent primitive cooldowns. A live shared service
+// (other agents' think/act calls depend on it), so spawning attaches.
+const goFlowDef = DEFAULT_NODE_TYPES.find((d) => d.id === "go-flow");
+if (goFlowDef) engine.registerNodeType(goFlowDef);
+engine.registerRuntime(new GoFlowRuntimeHost(resolveGoApiBase()));
+
+// Move (Sui): the real published omokoda-on-chain package — no backend of
+// its own, queries Sui's public RPC directly. Nothing to boot or kill.
+const moveOnChainDef = DEFAULT_NODE_TYPES.find((d) => d.id === "move-onchain");
+if (moveOnChainDef) engine.registerNodeType(moveOnChainDef);
+engine.registerRuntime(new MoveOnChainRuntimeHost(resolveSuiApiBase()));
+
+// Ọbàtálá (Wisdom): the real Clojure/Babashka symbolic ethics engine
+// (:4002 on the VPS) -- consent/privacy rule evaluation, live. A shared
+// gate other requests may depend on, so spawning attaches.
+const obatalaDef = DEFAULT_NODE_TYPES.find((d) => d.id === "obatala-wisdom");
+if (obatalaDef) engine.registerNodeType(obatalaDef);
+engine.registerRuntime(new ObatalaRuntimeHost(resolveObatalaApiBase()));
+
+// No seedConstellation() here — every node on this galaxy is real: the
+// kernel (from /v1/status once she's born) or a genuinely sandboxed Wasm
+// process a user spawns via the panel below.
 
 const canvas = document.getElementById("axiom-canvas");
 const legendSlot = document.getElementById("axiom-legend-slot");
@@ -64,7 +204,7 @@ const inspector = new NodeInspector(inspectorSlot, engine, (parent) => {
     framework: def?.label ?? parent.framework,
     capabilities: [{ name: "assist", description: `Delegated subtask from ${parent.label}` }],
   });
-  engine.connect(parent.id, child.id);
+  if (child.id !== parent.id) engine.connect(parent.id, child.id);
 });
 new SpawnPanel(spawnSlot, engine);
 new Legend(legendSlot, engine.getNodeTypes());
