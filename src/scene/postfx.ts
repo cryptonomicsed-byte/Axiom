@@ -211,9 +211,19 @@ export function createFractalMaterial(colorA: number, colorB: number): THREE.Sha
       uniform vec3 uColorA;
       uniform vec3 uColorB;
       void main() {
-        // Slowly breathe the window around the seahorse valley.
-        float zoom = 1.5 + 0.55 * sin(uTime * 0.05);
-        vec2 center = vec2(-0.75 + 0.14 * sin(uTime * 0.03), 0.11 * cos(uTime * 0.045));
+        // The explored window breathes around the seahorse valley (uTime,
+        // pure animation for continuity) but its depth and drift target are
+        // pulled by uActivity, the real live swarm-activity field (SSE via
+        // OmokodaGraphEngine, see GalaxyScene.ts). Idle/bounded swarms settle
+        // shallow near the gold in-set islands; active/chaotic swarms zoom
+        // deeper into denser escape-time detail -- the fractal's explored
+        // region is no longer a self-contained local computation.
+        float depth = mix(1.9, 0.85, uActivity);
+        float zoom = depth + 0.35 * sin(uTime * 0.05);
+        vec2 restCenter = vec2(-0.75, 0.11);
+        vec2 activeCenter = vec2(-0.745, 0.113);
+        vec2 driftCenter = mix(restCenter, activeCenter, uActivity);
+        vec2 center = driftCenter + vec2(0.14 * sin(uTime * 0.03), 0.11 * cos(uTime * 0.045)) * mix(1.0, 0.4, uActivity);
         vec2 c = center + vPos.xy * zoom;
         vec2 z = vec2(0.0);
         const int MAX = 72;
